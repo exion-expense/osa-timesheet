@@ -69,6 +69,8 @@ export default function JobForm() {
     if (job.end_date < job.start_date) return toast.err('วันสิ้นสุดต้องไม่ก่อนวันเริ่ม')
     const names = teams.map((t) => t.name.trim())
     if (new Set(names).size !== names.length) return toast.err('ชื่อทีมซ้ำกัน')
+    const noSup = teams.find((t) => !t.supervisor_id)
+    if (noSup) return toast.err(`กรุณาเลือกหัวหน้างานของ ${noSup.name.trim() || 'ทุกทีม'} (คนนี้เป็นผู้อนุมัติใบลงเวลา)`)
     setBusy(true)
     try {
       if (!editing) {
@@ -167,8 +169,8 @@ export default function JobForm() {
               <Field label="ชื่อทีม *">
                 <Input required maxLength={60} value={t.name} onChange={(e) => setTeam(i, { name: e.target.value })} />
               </Field>
-              <Field label="หัวหน้างาน" hint={sup.data?.length === 0 ? 'ยังไม่มีผู้ใช้ตำแหน่งหัวหน้างาน' : undefined}>
-                <Select value={t.supervisor_id} onChange={(e) => setTeam(i, { supervisor_id: e.target.value })}>
+              <Field label="หัวหน้างาน *" hint={sup.data?.length === 0 ? 'ยังไม่มีผู้ใช้ตำแหน่งหัวหน้างาน' : 'ผู้อนุมัติใบลงเวลาของทีมนี้'}>
+                <Select required value={t.supervisor_id} onChange={(e) => setTeam(i, { supervisor_id: e.target.value })}>
                   <option value="">— เลือก —</option>
                   {sup.data?.map((p) => (
                     <option key={p.id} value={p.id}>

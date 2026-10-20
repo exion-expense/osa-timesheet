@@ -1,6 +1,7 @@
 import { ArrowLeft, CalendarDays, ChevronRight, FileSpreadsheet, Pencil, Plus, QrCode, UserRound, Users } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import { TermsStatus } from '../components/TermsStatus'
 import { Badge, Button, Card, CardHeader, Empty, ErrorBox, Field, Input, Modal, PageHeader, Spinner, Tabs, useToast } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import { fmtDate, fmtDateLong, fmtMoney, todayYmd } from '../lib/format'
@@ -257,6 +258,7 @@ export default function JobDetail() {
         <Card className="max-w-2xl">
           <CardHeader title="เงื่อนไขคิดราคา" sub={canPrice ? 'Purchase เป็นผู้กำหนด' : 'กำหนดโดย Purchase'} />
           <div className="space-y-5 p-5">
+            <TermsStatus job={job} canEdit={canPrice} onConfirm={() => saveTerms({ terms_confirmed_at: new Date().toISOString() })} />
             <div>
               <p className="mb-2 text-sm font-medium text-slate-700">วันทำงานต่อสัปดาห์</p>
               <div className="grid gap-2 sm:grid-cols-2">

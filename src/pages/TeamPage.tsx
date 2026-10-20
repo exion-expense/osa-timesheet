@@ -29,13 +29,14 @@ export default function TeamPage() {
   const { data, error, loading, reload } = useLoad(async () => {
     const team = must(await supabase.from('teams').select('*').eq('id', id).single()) as Team
     const today = todayYmd()
-    const [job, teams, workers, pins, att, sheet] = await Promise.all([
+    const [job, teams, workers, pins, att, sheet, settings] = await Promise.all([
       supabase.from('jobs').select('*').eq('id', team.job_id).single(),
       supabase.from('teams').select('id, name').eq('job_id', team.job_id).order('name'),
       supabase.from('workers').select('*').eq('team_id', id).order('active', { ascending: false }).order('full_name'),
       supabase.from('daily_pins').select('worker_id, pin, failed_attempts').eq('work_date', today),
       supabase.from('attendance').select('id, worker_id, check_in, check_out').eq('team_id', id).eq('work_date', today),
       supabase.from('day_sheets').select('id').eq('team_id', id).eq('work_date', today).maybeSingle(),
+      supabase.from('app_settings').select('pin_max_attempts').eq('id', 1).maybeSingle(),
     ])
     return {
       team,
@@ -45,6 +46,7 @@ export default function TeamPage() {
       pins: must(pins) as Pin[],
       att: must(att) as Att[],
       sheetId: (must(sheet) as { id: string } | null)?.id ?? null,
+      maxAttempts: (must(settings) as { pin_max_attempts: number } | null)?.pin_max_attempts ?? 5,
     }
   }, [id])
 
@@ -54,7 +56,7 @@ export default function TeamPage() {
 
   if (loading && !data) return <Spinner />
   if (error || !data) return <ErrorBox message={error ?? 'ไม่พบทีม'} onRetry={reload} />
-  const { team, job, teams, workers, pins, att, sheetId } = data
+  const { team, job, teams, workers, pins, att, sheetId, maxAttempts } = data
   if (!(is('admin') || team.supervisor_id === profile?.id)) return <Forbidden />
 
   const pinOf = (w: string) => pins.find((p) => p.worker_id === w)
@@ -157,7 +159,7 @@ export default function TeamPage() {
                   {workers.map((w) => {
                     const p = pinOf(w.id)
                     const a = attOf(w.id)
-                    const locked = p && p.failed_attempts >= 5
+                    const locked = p && p.failed_attempts >= maxAttempts
                     return (
                       <tr key={w.id} className={w.active ? '' : 'bg-slate-50 text-slate-400'}>
                         <td className="px-5 py-3">

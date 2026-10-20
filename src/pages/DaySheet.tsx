@@ -194,6 +194,19 @@ export default function DaySheet() {
             )}
           </div>
         </div>
+        {!sheet.supervisor_approved_at && !isSup && (
+          <p className={`mt-4 rounded-xl px-4 py-3 text-sm ${sheet.supervisor_id ? 'bg-slate-50 text-slate-600' : 'bg-amber-50 text-amber-800'}`}>
+            {sheet.supervisor_id ? (
+              <>
+                รอ <b>{personName(sheet.supervisor_id)}</b> (หัวหน้างานของ{sheet.team_name}) เข้าระบบมาอนุมัติ — ผู้อื่นอนุมัติแทนไม่ได้
+              </>
+            ) : (
+              <>
+                <b>{sheet.team_name} ยังไม่ได้กำหนดหัวหน้างาน</b> จึงยังไม่มีใครอนุมัติได้ — แอดมินกำหนดได้ที่หน้าจ็อบ › แก้ไข › ช่องหัวหน้างาน
+              </>
+            )}
+          </p>
+        )}
         {sheet.reject_reason && !sheet.supervisor_approved_at && (
           <p className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
             <b>ถูกตีกลับโดย {personName(sheet.rejected_by)}:</b> {sheet.reject_reason}

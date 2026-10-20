@@ -101,7 +101,7 @@ export default function Users() {
             <Field label="ชื่อที่แสดง">
               <Input value={edit.full_name} onChange={(e) => setEdit({ ...edit, full_name: e.target.value })} />
             </Field>
-            <Field label="ตำแหน่ง" hint="แอดมินและ Purchase ต้องใช้รหัส 2 ชั้นจากแอป Authenticator">
+            <Field label="ตำแหน่ง" hint="ถ้าเปิด “บังคับรหัส 2 ชั้น” ในหน้าตั้งค่า แอดมินและ Purchase ต้องใช้แอป Authenticator">
               <Select value={edit.role ?? ''} onChange={(e) => setEdit({ ...edit, role: (e.target.value || null) as Role | null })}>
                 <option value="">— ไม่มีสิทธิ์ —</option>
                 {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (

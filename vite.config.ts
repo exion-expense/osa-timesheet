@@ -39,7 +39,7 @@ function githubPages(): Plugin {
     name: 'github-pages',
     apply: 'build',
     closeBundle() {
-      const out = resolve(__dirname, 'dist')
+      const out = resolve(import.meta.dirname, 'dist')
       copyFileSync(resolve(out, 'index.html'), resolve(out, '404.html'))
       writeFileSync(resolve(out, '.nojekyll'), '')
     },

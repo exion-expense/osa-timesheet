@@ -27,6 +27,8 @@ export interface Job {
   workweek: 5 | 6
   evening_break: boolean
   status: 'active' | 'closed'
+  terms_confirmed_by: string | null
+  terms_confirmed_at: string | null
   created_at: string
 }
 

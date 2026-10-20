@@ -175,6 +175,7 @@ select pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
 insert into public.worker_rates (worker_id, day_rate) values ('30000000-0000-0000-0000-000000000001', 1100), ('30000000-0000-0000-0000-000000000002', 800);
 select pg_temp.ok(pg_temp.raises($q$update public.jobs set title = 'x'$q$), 'purchase แก้ชื่อจ็อบไม่ได้');
 update public.jobs set workweek = 6, evening_break = true;
+select pg_temp.ok((select terms_confirmed_at is null from public.jobs), 'ตั้งค่าเดิมซ้ำ ไม่ถือว่ายืนยัน');
 insert into public.cost_sheets (id, job_id, period_from, period_to) values
   ('40000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', :'sun'::date - 1, :'sun'::date);
 select public.cost_preview('10000000-0000-0000-0000-000000000001', :'sun'::date - 1, :'sun'::date) as pv \gset
@@ -183,6 +184,9 @@ select public.cost_preview('10000000-0000-0000-0000-000000000001', :'sun'::date 
 -- สมหญิง 800 → 100/ชม: เสาร์ 08-17 = 8 ปกติ + ค่ารถ 50 = 850
 select pg_temp.ok((:'pv'::jsonb ->> 'subtotal')::numeric = 6778.13, 'ยอดรวม 6,778.13 (ได้ ' || (:'pv'::jsonb ->> 'subtotal') || ')');
 select pg_temp.ok((:'pv'::jsonb ->> 'wht')::numeric = 203.34 and (:'pv'::jsonb ->> 'net')::numeric = 6574.79, 'หัก 3% และยอดสุทธิถูก');
+select pg_temp.ok(pg_temp.raises($q$select public.submit_cost_sheet('40000000-0000-0000-0000-000000000001')$q$), 'ส่งไม่ได้ถ้ายังไม่ยืนยันเงื่อนไข');
+update public.jobs set terms_confirmed_at = now(), terms_confirmed_by = '00000000-0000-0000-0000-00000000000a';
+select pg_temp.ok((select terms_confirmed_by = '00000000-0000-0000-0000-0000000000c1' from public.jobs), 'ยืนยันเงื่อนไขแล้ว และปลอมชื่อผู้ยืนยันไม่ได้');
 select public.submit_cost_sheet('40000000-0000-0000-0000-000000000001');
 select pg_temp.ok((select status from public.cost_sheets) = 'submitted', 'ส่งอนุมัติแล้ว');
 select pg_temp.ok(pg_temp.raises($q$update public.cost_sheets set net_total = 1$q$), 'แก้ยอดเงินหลังส่งไม่ได้');
@@ -225,5 +229,13 @@ values ('40000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-0000000
 select pg_temp.ok((select created_by = '00000000-0000-0000-0000-0000000000c1' and net_total is null from public.cost_sheets where id = '40000000-0000-0000-0000-000000000002'),
   'L2: ปลอมผู้สร้าง/ยอดเงินตอนสร้างใบคิดราคาไม่ได้');
 select pg_temp.ok(pg_temp.raises($q$select public.period_frozen('10000000-0000-0000-0000-000000000001', current_date)$q$), 'L4: เรียก period_frozen ตรงไม่ได้');
+
+-- ---------- 9. หัวหน้างานต้องมีทุกทีม ----------
+reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.ok(pg_temp.raises($q$select public.create_job('{"job_no":"NOSUP1","title":"t","start_date":"2026-10-01","end_date":"2026-10-02","teams":[{"name":"A","supervisor_id":""}]}')$q$), 'สร้างจ็อบที่ทีมไม่มีหัวหน้างานไม่ได้');
+select pg_temp.ok(pg_temp.raises($q$select public.create_job('{"job_no":"NOSUP2","title":"t","start_date":"2026-10-01","end_date":"2026-10-02","teams":[{"name":"A","supervisor_id":"00000000-0000-0000-0000-0000000000b1"}]}')$q$), 'เลือก planner เป็นหัวหน้างานไม่ได้');
+select pg_temp.ok(pg_temp.raises($q$update public.teams set supervisor_id = null$q$), 'ลบหัวหน้างานออกจากทีมไม่ได้');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+select pg_temp.ok(pg_temp.raises($q$update public.jobs set terms_confirmed_at = now()$q$) or (select terms_confirmed_by = '00000000-0000-0000-0000-0000000000c1' from public.jobs), 'หัวหน้างานยืนยันเงื่อนไขแทนไม่ได้');
 
 \echo ALL TESTS PASSED

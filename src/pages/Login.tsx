@@ -45,6 +45,7 @@ export default function Login() {
           <Button type="submit" size="lg" className="w-full" loading={busy}>
             <Lock className="size-4" /> เข้าสู่ระบบ
           </Button>
+          <p className="text-center text-xs text-slate-500">ลืมรหัสผ่านหรือยังไม่มีบัญชี กรุณาติดต่อแอดมินของระบบ</p>
         </form>
         <p className="mt-6 text-center text-xs text-slate-400">
           สำหรับพนักงาน OSA เท่านั้น · <Link to="/privacy" className="underline">นโยบายความเป็นส่วนตัว</Link>

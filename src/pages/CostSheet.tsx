@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowLeft, Check, FileText, Printer, RotateCcw, Send, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import { TermsStatus } from '../components/TermsStatus'
 import { Badge, Button, Card, CardHeader, ErrorBox, Field, Input, Modal, PageHeader, Spinner, Stat, Textarea, useToast } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import { fmtDate, fmtDateTime, fmtHours, fmtMoney, fmtNum } from '../lib/format'
@@ -97,6 +98,7 @@ export default function CostSheet() {
   }
 
   const blockers = [
+    !job.terms_confirmed_at && 'ยังไม่ได้ยืนยันเงื่อนไขคิดราคา (5/6 วัน และพักเย็น)',
     snap.pending_days > 0 && `ยังมีใบลงเวลารายวัน ${snap.pending_days} ใบที่อนุมัติไม่ครบ`,
     snap.missing_rates > 0 && `ยังไม่ได้ใส่ค่าแรง ${snap.missing_rates} คน`,
     snap.workers.length === 0 && 'ไม่มีข้อมูลในช่วงวันที่นี้',
@@ -159,6 +161,11 @@ export default function CostSheet() {
       <div className="mb-6 grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader title="เงื่อนไขการคิด" sub={canEdit ? 'Purchase เปลี่ยนได้ก่อนส่งอนุมัติ' : undefined} />
+          {draft && (
+            <div className="px-5 pt-5">
+              <TermsStatus job={job} canEdit={canEdit} onConfirm={() => saveTerms({ terms_confirmed_at: new Date().toISOString() })} />
+            </div>
+          )}
           <div className="grid gap-3 p-5 sm:grid-cols-2">
             <Choice
               label="วันทำงาน"
