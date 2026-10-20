@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-50: #eef4fb;
+  --color-brand-100: #d7e5f5;
+  --color-brand-200: #afc9ea;
+  --color-brand-500: #3b70b9;
+  --color-brand-600: #2b5ea7;
+  --color-brand-700: #234c88;
+  --color-brand-800: #1c3c6b;
+  --color-brand-900: #142a4b;
+}
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  body { @apply bg-slate-50 text-slate-800 antialiased; }
+  input, select, textarea, button { font: inherit; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-brand-500; }
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* ---------- เอกสารสำหรับพิมพ์ ---------- */
+.doc { @apply bg-white text-black mx-auto; font-size: 11px; }
+.doc table { border-collapse: collapse; width: 100%; }
+.doc th, .doc td { border: 1px solid #555; padding: 2px 4px; }
+.doc .noborder td, .doc .noborder th { border: 0; }
+
+@media print {
+  @page { size: A4; margin: 10mm; }
+  @page landscape { size: A4 landscape; margin: 8mm; }
+  body { background: white !important; }
+  .no-print { display: none !important; }
+  .page-break { break-after: page; }
+  .landscape { page: landscape; }
+  .doc { box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
