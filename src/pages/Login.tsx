@@ -1,6 +1,6 @@
 import { Lock } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router'
+import { Link, Navigate, useLocation } from 'react-router'
 import { Logo } from '../components/Layout'
 import { Button, Field, Input } from '../components/ui'
 import { useAuth } from '../lib/auth'
@@ -8,7 +8,6 @@ import { errMsg, supabase } from '../lib/supabase'
 
 export default function Login() {
   const { session, loading, mfaRequired } = useAuth()
-  const nav = useNavigate()
   const loc = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -22,9 +21,11 @@ export default function Login() {
     setBusy(true)
     setError(null)
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
-    setBusy(false)
-    if (error) setError(errMsg(error))
-    else nav('/', { replace: true })
+    // สำเร็จแล้วไม่ต้อง navigate เอง — หน้านี้จะพาไปต่อเมื่อโหลดตำแหน่งเสร็จ (ไม่มีหน้าแว่บ)
+    if (error) {
+      setBusy(false)
+      setError(errMsg(error))
+    }
   }
 
   return (

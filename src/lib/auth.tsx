@@ -1,5 +1,5 @@
 import type { Session } from '@supabase/supabase-js'
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { supabase } from './supabase'
 import type { Profile, Role } from './types'
 
@@ -20,19 +20,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [mfaRequired, setMfaRequired] = useState(false)
   const [loading, setLoading] = useState(true)
+  const loadedUser = useRef<string | null>(null)
 
+  // ตั้ง session พร้อมกับ profile ในครั้งเดียว เพื่อไม่ให้หน้า "ไม่มีสิทธิ์" แว่บขึ้นระหว่างโหลดตำแหน่ง
   const load = useCallback(async (s: Session | null) => {
-    setSession(s)
     if (!s) {
+      loadedUser.current = null
+      setSession(null)
       setProfile(null)
       setMfaRequired(false)
       setLoading(false)
       return
     }
+    if (loadedUser.current !== s.user.id) setLoading(true)
     const [{ data: p }, { data: need }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', s.user.id).maybeSingle(),
       supabase.rpc('mfa_required'),
     ])
+    loadedUser.current = s.user.id
+    setSession(s)
     setProfile((p as Profile) ?? null)
     setMfaRequired(Boolean(need))
     setLoading(false)
@@ -45,6 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(s)
         return
       }
+      // ผู้ใช้คนใหม่: แสดงตัวโหลดทันที จนกว่าจะรู้ตำแหน่ง
+      if (s && loadedUser.current !== s.user.id) setLoading(true)
       // เลื่อนออกจาก callback ตามคำแนะนำของ supabase-js เพื่อไม่ให้ deadlock
       setTimeout(() => load(s), 0)
     })
