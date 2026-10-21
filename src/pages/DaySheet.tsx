@@ -5,7 +5,7 @@ import { DocPreview } from '../components/DocPreview'
 import { Badge, Button, Card, CardHeader, ErrorBox, Field, Input, Modal, PageHeader, Select, Spinner, Textarea, useToast } from '../components/ui'
 import { DayDoc, loadDay } from '../print/PrintDay'
 import { useAuth } from '../lib/auth'
-import { bkkIso, fmtDateLong, fmtDateTime, fmtHours, fmtMoney, fmtTime } from '../lib/format'
+import { addDays, bkkIso, fmtDate, fmtDateLong, fmtDateTime, fmtHours, fmtMoney, fmtOut, fmtTime } from '../lib/format'
 import { must, useLoad } from '../lib/hooks'
 import { DayBadge } from '../lib/status'
 import { supabase } from '../lib/supabase'
@@ -76,7 +76,8 @@ export default function DaySheet() {
     if (editAtt.note.trim().length < 3) return toast.err('กรุณาระบุเหตุผลการแก้ไข')
     const payload = {
       check_in: bkkIso(sheet.work_date, editAtt.in),
-      check_out: editAtt.out ? bkkIso(sheet.work_date, editAtt.out) : null,
+      // เวลาออกน้อยกว่าหรือเท่ากับเวลาเข้า = ออกวันถัดไป (ทำงานข้ามเที่ยงคืน)
+      check_out: editAtt.out ? bkkIso(editAtt.out <= editAtt.in ? addDays(sheet.work_date, 1) : sheet.work_date, editAtt.out) : null,
       note: editAtt.note.trim(),
     }
     setBusy(true)
@@ -265,7 +266,7 @@ export default function DaySheet() {
                     )}
                   </td>
                   <td className="tabular px-3 py-3 text-center">{fmtTime(r.check_in)}</td>
-                  <td className="tabular px-3 py-3 text-center">{r.check_out ? fmtTime(r.check_out) : <Badge tone="amber">ยังไม่ออก</Badge>}</td>
+                  <td className="tabular px-3 py-3 text-center">{r.check_out ? fmtOut(r.check_in, r.check_out) : <Badge tone="amber">ยังไม่ออก</Badge>}</td>
                   <td className="tabular px-3 py-3 text-center font-medium">{fmtHours(r.normal_h)}</td>
                   <td className="tabular px-3 py-3 text-center font-medium text-brand-700">{fmtHours(r.ot_h)}</td>
                   <td className="px-3 py-3">
@@ -376,7 +377,7 @@ export default function DaySheet() {
               <Field label="เวลาเข้า">
                 <Input type="time" value={editAtt.in} onChange={(e) => setEditAtt({ ...editAtt, in: e.target.value })} />
               </Field>
-              <Field label="เวลาออก">
+              <Field label="เวลาออก" hint={editAtt.out && editAtt.in && editAtt.out <= editAtt.in ? `ออกวันถัดไป (${fmtDate(addDays(sheet.work_date, 1))}) — ทำงานข้ามเที่ยงคืน` : 'ถ้าออกหลังเที่ยงคืน ใส่เวลาได้เลย เช่น 01:00'}>
                 <Input type="time" value={editAtt.out} onChange={(e) => setEditAtt({ ...editAtt, out: e.target.value })} />
               </Field>
             </div>

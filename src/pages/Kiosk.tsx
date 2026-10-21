@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { Logo } from '../components/Layout'
 import { cx, Spinner } from '../components/ui'
-import { fmtDateLong, fmtTime } from '../lib/format'
+import { fmtDate, fmtDateLong, fmtOut, fmtTime } from '../lib/format'
 import { errMsg, supabase } from '../lib/supabase'
 
 interface TeamInfo {
@@ -24,6 +24,8 @@ interface Status {
   check_in: string | null
   check_out: string | null
   server_time: string
+  work_date?: string
+  overnight?: boolean
 }
 
 type Step = 'pick' | 'pin' | 'action' | 'done'
@@ -226,6 +228,9 @@ export default function Kiosk() {
       {step === 'action' && status && (
         <div className="rounded-2xl bg-white p-5 shadow-sm">
           <p className="text-center text-lg font-semibold text-slate-900">{status.name}</p>
+          {status.overnight && status.work_date && (
+            <p className="mt-2 rounded-lg bg-indigo-50 px-3 py-2 text-center text-sm text-indigo-800">กะข้ามคืน · ลงเวลาออกของวันที่ {fmtDate(status.work_date)}</p>
+          )}
           <div className="my-4 grid grid-cols-2 gap-3 text-center">
             <div className="rounded-xl bg-slate-50 p-3">
               <p className="text-xs text-slate-500">เข้างาน</p>
@@ -233,7 +238,7 @@ export default function Kiosk() {
             </div>
             <div className="rounded-xl bg-slate-50 p-3">
               <p className="text-xs text-slate-500">ออกงาน</p>
-              <p className="tabular text-xl font-semibold">{status.check_out ? fmtTime(status.check_out) : '—'}</p>
+              <p className="tabular text-xl font-semibold">{status.check_out && status.check_in ? fmtOut(status.check_in, status.check_out) : '—'}</p>
             </div>
           </div>
           {msg && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-center text-sm text-rose-700">{msg}</p>}

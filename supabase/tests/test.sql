@@ -252,4 +252,43 @@ select pg_temp.ok(pg_temp.raises($q$update public.teams set supervisor_id = null
 select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
 select pg_temp.ok(pg_temp.raises($q$update public.jobs set terms_confirmed_at = now()$q$) or (select terms_confirmed_by = '00000000-0000-0000-0000-0000000000c1' from public.jobs), 'หัวหน้างานยืนยันเงื่อนไขแทนไม่ได้');
 
+-- ---------- 10. ทำงานข้ามเที่ยงคืน ----------
+reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+insert into public.attendance (worker_id, team_id, check_in, check_out) values
+  ('30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001',
+   (:'sun'::date - 6 + time '20:00') at time zone 'Asia/Bangkok', (:'sun'::date - 5 + time '01:00') at time zone 'Asia/Bangkok');
+select pg_temp.ok((select work_date = :'sun'::date - 6 and normal_h = 5 and ot_h = 0 from public.v_attendance_hours
+                   where worker_id = '30000000-0000-0000-0000-000000000002' and work_date = :'sun'::date - 6), 'กะ 20:00–01:00 นับเป็นวันเริ่มงาน 5 ชม.');
+select pg_temp.ok(pg_temp.raises(format($q$insert into public.attendance (worker_id, team_id, check_in, check_out) values ('30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', %L, %L)$q$,
+   ((:'sun'::date - 8 + time '08:00') at time zone 'Asia/Bangkok'), ((:'sun'::date - 7 + time '09:00') at time zone 'Asia/Bangkok'))), 'กะเกิน 24 ชม. ไม่ได้');
+
+reset role;
+insert into public.workers (id, job_id, team_id, full_name) values
+  ('30000000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'ข้ามคืน ทดสอบ');
+set session_replication_role = replica;
+insert into public.day_sheets (job_id, team_id, work_date, opened_at) values
+  ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', public.bkk_today() - 1, now() - interval '1 day')
+  on conflict (team_id, work_date) do update set opened_at = coalesce(public.day_sheets.opened_at, excluded.opened_at),
+    supervisor_approved_at = null, planner_approved_at = null;
+insert into public.daily_pins (worker_id, work_date, pin) values ('30000000-0000-0000-0000-000000000009', public.bkk_today() - 1, '4321');
+insert into public.attendance (worker_id, job_id, team_id, work_date, check_in) values
+  ('30000000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001',
+   public.bkk_today() - 1, now() - interval '3 hours');
+set session_replication_role = origin;
+set role anon; select set_config('request.jwt.claims', '{"role":"anon"}', false);
+select pg_temp.ok((public.kiosk_status(:'tok', '30000000-0000-0000-0000-000000000009', '4321') ->> 'overnight')::boolean, 'หลังเที่ยงคืน ใช้ PIN เมื่อวานเข้าได้ (กะข้ามคืน)');
+select pg_temp.ok(public.kiosk_clock(:'tok', '30000000-0000-0000-0000-000000000009', '4321', 'in') ->> 'error' like 'ยังไม่ได้ลงเวลาออกของเมื่อวาน%', 'ยังไม่ออกของเมื่อวาน เช็คอินใหม่ไม่ได้');
+select pg_temp.ok((public.kiosk_clock(:'tok', '30000000-0000-0000-0000-000000000009', '4321', 'out') ->> 'ok')::boolean, 'สแกนออกหลังเที่ยงคืนได้');
+reset role;
+-- (ข้อมูลทดสอบสร้างเวลาเข้าเป็น "3 ชม.ก่อน" จึงเช็กแค่ว่าอัปเดตรายการเดิม ไม่ได้สร้างรายการใหม่)
+select pg_temp.ok((select count(*) = 1 and bool_and(check_out is not null) from public.attendance where worker_id = '30000000-0000-0000-0000-000000000009'), 'เวลาออกบันทึกในรายการเดิม ไม่สร้างรายการใหม่');
+
+-- ---------- 11. ชื่อจริงและลายเซ็น ----------
+set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+update public.profiles set full_name = 'สมชาย หัวหน้า', signature_png = 'data:image/png;base64,iVBORw0KGgo=' where id = auth.uid();
+select pg_temp.ok((select full_name = 'สมชาย หัวหน้า' and signature_png is not null from public.profiles where id = auth.uid()), 'แก้ชื่อและลายเซ็นของตัวเองได้');
+update public.profiles set full_name = 'แอบแก้' where id = '00000000-0000-0000-0000-000000000002';
+select pg_temp.ok((select full_name <> 'แอบแก้' from public.profiles where id = '00000000-0000-0000-0000-000000000002'), 'แก้โปรไฟล์คนอื่นไม่ได้');
+select pg_temp.ok(pg_temp.raises($q$update public.profiles set signature_png = 'javascript:alert(1)' where id = auth.uid()$q$), 'ลายเซ็นต้องเป็นรูป PNG เท่านั้น');
+
 \echo ALL TESTS PASSED

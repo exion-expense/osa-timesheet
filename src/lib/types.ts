@@ -13,6 +13,7 @@ export interface Profile {
   full_name: string
   role: Role | null
   active: boolean
+  signature_png?: string | null
   created_at: string
 }
 

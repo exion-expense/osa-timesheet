@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Badge, Button, Card, CardHeader, cx, Empty, ErrorBox, PageHeader, Spinner, useToast } from '../components/ui'
 import { useAuth } from '../lib/auth'
-import { fmtDate, fmtDateLong, fmtTime, todayYmd } from '../lib/format'
+import { addDays, fmtDate, fmtDateLong, fmtOut, fmtTime, todayYmd } from '../lib/format'
 import { must, useLoad } from '../lib/hooks'
 import { downloadBlob, makeQrArtwork } from '../lib/qrArt'
 import { supabase } from '../lib/supabase'
@@ -43,16 +43,18 @@ export default function Today() {
   const today = todayYmd()
 
   const { data, error, loading, reload } = useLoad(async () => {
-    const [teams, sheets] = await Promise.all([
+    const [teams, sheets, yesterday] = await Promise.all([
       supabase.from('teams').select('id, name, supervisor_id, qr_token, job_id, jobs(id, job_no, title, status, start_date, end_date), workers(id, active)'),
       supabase.from('v_day_sheets').select('*').eq('work_date', today),
+      supabase.from('v_day_sheets').select('*').eq('work_date', addDays(today, -1)).gt('open_people', 0),
     ])
     const all = must(teams) as unknown as TeamRow[]
     const mine = all
       .filter((t) => t.jobs.status === 'active' && today >= t.jobs.start_date && today <= t.jobs.end_date)
       .filter((t) => is('admin') || t.supervisor_id === profile?.id)
       .sort((a, b) => a.jobs.job_no.localeCompare(b.jobs.job_no) || a.name.localeCompare(b.name))
-    return { teams: mine, sheets: must(sheets) as Sheet[] }
+    const open = (must(yesterday) as Sheet[]).filter((s) => is('admin') || s.supervisor_id === profile?.id)
+    return { teams: mine, sheets: must(sheets) as Sheet[], yesterdayOpen: open }
   }, [today, profile?.id])
 
   // อัปเดตสถานะทุก 30 วินาที (ดูคนเข้า-ออกแบบสด)
@@ -63,7 +65,7 @@ export default function Today() {
 
   if (loading && !data) return <Spinner />
   if (error || !data) return <ErrorBox message={error ?? ''} onRetry={reload} />
-  const { teams, sheets } = data
+  const { teams, sheets, yesterdayOpen } = data
   const sheetOf = (teamId: string) => sheets.find((s) => s.team_id === teamId)
   const selectedId = params.get('team') ?? teams[0]?.id
   const selected = teams.find((t) => t.id === selectedId) ?? teams[0]
@@ -71,6 +73,18 @@ export default function Today() {
   return (
     <>
       <PageHeader title="ลงเวลาวันนี้" sub={fmtDateLong(today)} />
+      {yesterdayOpen.length > 0 && (
+        <div className="mb-6 space-y-2">
+          {yesterdayOpen.map((s) => (
+            <Link key={s.id} to={`/days/${s.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 hover:bg-indigo-100">
+              <span>
+                <b>เมื่อวาน ({fmtDate(s.work_date)})</b> {s.job_no} · {s.team_name} ยังมี {s.open_people} คนไม่ได้ลงเวลาออก — ถ้ายังทำงานข้ามคืนอยู่ ให้สแกนออกด้วย PIN ของเมื่อวาน หรือหัวหน้าใส่เวลาออกให้
+              </span>
+              <span className="font-medium">เปิดใบลงเวลา →</span>
+            </Link>
+          ))}
+        </div>
+      )}
       {teams.length === 0 ? (
         <Card>
           <Empty icon={<CalendarClock className="size-6" />} title="วันนี้ไม่มีทีมที่ต้องเปิดลงเวลา" sub="จะแสดงเฉพาะทีมที่คุณคุม ในจ็อบที่เปิดอยู่และวันนี้อยู่ในช่วงวันที่ของจ็อบ" />
@@ -276,7 +290,7 @@ function Workspace({ team, sheet, onChanged }: { team: TeamRow; sheet?: Sheet; o
                             )}
                           </td>
                           <td className="tabular px-3 py-3 text-center">{a ? fmtTime(a.check_in) : '–'}</td>
-                          <td className="tabular px-3 py-3 text-center">{a?.check_out ? fmtTime(a.check_out) : a ? <Badge tone="green">อยู่</Badge> : '–'}</td>
+                          <td className="tabular px-3 py-3 text-center">{a?.check_out ? fmtOut(a.check_in, a.check_out) : a ? <Badge tone="green">อยู่</Badge> : '–'}</td>
                           <td className="px-5 py-3 text-right">
                             <button onClick={() => regen(w.id)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" title="สุ่ม PIN ใหม่ / ปลดล็อก" aria-label={`สุ่ม PIN ใหม่ ${w.full_name}`}>
                               <RefreshCw className="size-4" />

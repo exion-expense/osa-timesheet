@@ -25,6 +25,13 @@ export const fmtDocDate = (d?: string | Date | null) => {
 }
 export const fmtDateTime = (d?: string | null) => (d ? `${fmtDate(d)} ${fmtTime(d)}` : '-')
 
+/** เวลาออก — ถ้าออกหลังเที่ยงคืน (คนละวันกับเวลาเข้า) ต่อท้าย (+1) */
+export const fmtOut = (checkIn: string, checkOut?: string | null) => {
+  if (!checkOut) return ''
+  const days = Math.round((Date.parse(`${ymdFmt.format(new Date(checkOut))}T12:00:00Z`) - Date.parse(`${ymdFmt.format(new Date(checkIn))}T12:00:00Z`)) / 86400000)
+  return days > 0 ? `${fmtTime(checkOut)} (+${days})` : fmtTime(checkOut)
+}
+
 export const todayYmd = () => ymdFmt.format(new Date())
 export const toYmd = (d: Date) => ymdFmt.format(d)
 

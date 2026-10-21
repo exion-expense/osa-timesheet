@@ -57,10 +57,10 @@ export function Layout() {
       <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold text-white">
         {(profile?.full_name || profile?.email || '?').slice(0, 1).toUpperCase()}
       </div>
-      <div className="min-w-0 flex-1">
+      <NavLink to="/me" onClick={() => setOpen(false)} className="min-w-0 flex-1 rounded-lg hover:opacity-80" title="บัญชีของฉัน">
         <p className="truncate text-sm font-medium text-slate-900">{profile?.full_name || profile?.email}</p>
-        <p className="text-xs text-slate-500">{profile?.role ? ROLE_LABEL[profile.role] : ''}</p>
-      </div>
+        <p className="text-xs text-slate-500">{profile?.role ? ROLE_LABEL[profile.role] : ''} · บัญชีของฉัน</p>
+      </NavLink>
       <button onClick={() => setPwOpen(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="เปลี่ยนรหัสผ่าน" aria-label="เปลี่ยนรหัสผ่าน">
         <KeyRound className="size-4" />
       </button>

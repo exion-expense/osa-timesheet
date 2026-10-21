@@ -1,8 +1,8 @@
 import { useParams } from 'react-router'
 import { ErrorBox, Spinner } from '../components/ui'
-import { bahtText, fmtDocDate, fmtHours, fmtMoney, fmtNum } from '../lib/format'
+import { fmtMoney, fmtNum } from '../lib/format'
 import { useLoad } from '../lib/hooks'
-import { DocHeader, DraftMark, loadCost, Paper, PrintShell, SignBox } from './common'
+import { DraftMark, loadCost, Paper, PrintShell } from './common'
 
 export default function PrintSummary() {
   const { id = '' } = useParams()
@@ -16,124 +16,57 @@ export default function PrintSummary() {
   )
 }
 
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+/** ช่วงวันที่แบบในเอกสารตัวอย่าง เช่น 1-11 Sep 2026 */
+function periodText(from: string, to: string) {
+  const [fy, fm, fd] = from.split('-').map(Number)
+  const [ty, tm, td] = to.split('-').map(Number)
+  if (from === to) return `${fd} ${MON[fm - 1]} ${fy}`
+  if (fy === ty && fm === tm) return `${fd}-${td} ${MON[tm - 1]} ${ty}`
+  if (fy === ty) return `${fd} ${MON[fm - 1]} - ${td} ${MON[tm - 1]} ${ty}`
+  return `${fd} ${MON[fm - 1]} ${fy} - ${td} ${MON[tm - 1]} ${ty}`
+}
+
+/** สรุปค่าแรง — รูปแบบเดียวกับเอกสารตัวอย่างของบริษัท (หน้าสั้น ไม่มีช่องเซ็น) */
 export function SummaryDoc({ data }: { data: Awaited<ReturnType<typeof loadCost>> }) {
-  const { cs, snap, name, supervisors } = data
-  const sum = (k: 'n1' | 'ot15' | 'h2' | 'h3') => snap.workers.reduce((s, w) => s + w.hours[k], 0)
-  const allowTotal = snap.workers.reduce((s, w) => s + w.allowance_total, 0)
-
+  const { cs, snap } = data
   return (
-      <Paper className="mx-auto">
-        <DraftMark show={cs.status !== 'approved'} />
-        <DocHeader
-          company={snap.settings.company}
-          right={cs.revision > 0 ? <p className="text-base font-bold text-rose-600">REVISE {cs.revision}</p> : undefined}
-        />
-        <h1 className="mt-2 mb-4 border-b-2 border-black pb-2 text-center text-xl font-bold">สรุปค่าแรงผู้รับเหมา</h1>
-
-        <table className="noborder mb-4 text-[12px]">
-          <tbody>
-            <tr>
-              <td className="w-28 font-semibold">Job</td>
-              <td>
-                {snap.job.job_no} &nbsp; {snap.job.title}
-              </td>
-              <td className="w-24 font-semibold">วันที่พิมพ์</td>
-              <td className="w-28">{fmtDocDate(new Date())}</td>
-            </tr>
-            <tr>
-              <td className="font-semibold">ผู้รับเหมา</td>
-              <td>{snap.job.contractor || '-'}</td>
-              <td className="font-semibold">จำนวนคน</td>
-              <td>{snap.workers.length} คน</td>
-            </tr>
-            <tr>
-              <td className="font-semibold">ช่วงวันที่</td>
-              <td>
-                {fmtDocDate(snap.period.from)} – {fmtDocDate(snap.period.to)}
-              </td>
-              <td className="font-semibold">แรงงานรวม</td>
-              <td>{snap.workers.reduce((s, w) => s + w.work_days, 0)} แรง</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <table className="text-[10.5px]">
-          <thead>
-            <tr className="bg-slate-200">
-              <th className="w-7">No</th>
-              <th>ชื่อ-นามสกุล</th>
-              <th className="w-14">ค่าแรง/วัน</th>
-              <th className="w-9">วัน</th>
-              <th className="w-11">ปกติ</th>
-              <th className="w-11">x1.5</th>
-              <th className="w-11">x2</th>
-              <th className="w-11">x3</th>
-              <th className="w-16">Allowance</th>
-              <th className="w-20">จำนวนเงิน</th>
-            </tr>
-          </thead>
-          <tbody>
-            {snap.workers.map((w, i) => (
-              <tr key={w.worker_id} style={{ breakInside: 'avoid' }}>
-                <td className="text-center">{i + 1}</td>
-                <td>
-                  {w.name} <span className="text-[9px] text-slate-600">({w.position})</span>
-                </td>
-                <td className="text-right">{fmtMoney(w.day_rate)}</td>
-                <td className="text-center">{w.work_days}</td>
-                <td className="text-center">{fmtHours(w.hours.n1)}</td>
-                <td className="text-center">{fmtHours(w.hours.ot15)}</td>
-                <td className="text-center">{fmtHours(w.hours.h2)}</td>
-                <td className="text-center">{fmtHours(w.hours.h3)}</td>
-                <td className="text-right">{w.allowance_total ? fmtMoney(w.allowance_total) : ''}</td>
-                <td className="text-right">{fmtMoney(w.total)}</td>
-              </tr>
-            ))}
-            <tr className="bg-slate-100 font-semibold">
-              <td colSpan={4} className="text-center">
-                รวมชั่วโมง
-              </td>
-              <td className="text-center">{fmtNum(sum('n1'))}</td>
-              <td className="text-center">{fmtNum(sum('ot15'))}</td>
-              <td className="text-center">{fmtNum(sum('h2'))}</td>
-              <td className="text-center">{fmtNum(sum('h3'))}</td>
-              <td className="text-right">{allowTotal ? fmtMoney(allowTotal) : ''}</td>
-              <td className="text-right">{fmtMoney(snap.subtotal)}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div className="mt-4 flex justify-end" style={{ breakInside: 'avoid' }}>
-          <table className="w-80 text-[12px]">
-            <tbody>
-              <tr>
-                <td className="font-semibold">สรุปค่าแรง</td>
-                <td className="w-32 text-right">{fmtMoney(snap.subtotal)}</td>
-              </tr>
-              <tr>
-                <td className="font-semibold">หัก ณ ที่จ่าย {fmtNum(snap.settings.wht_rate)}%</td>
-                <td className="text-right">({fmtMoney(snap.wht)})</td>
-              </tr>
-              <tr className="bg-slate-200 text-[13px] font-bold">
-                <td>ยอดจ่ายสุทธิ</td>
-                <td className="text-right">{fmtMoney(snap.net)}</td>
-              </tr>
-            </tbody>
-          </table>
+    <Paper className="mx-auto">
+      <DraftMark show={cs.status !== 'approved'} />
+      <div className="mx-auto mt-[22mm] w-[150mm] text-[15px]" style={{ fontFamily: '"IBM Plex Sans Thai", "Times New Roman", serif' }}>
+        {cs.revision > 0 && <p className="mb-6 text-right text-lg font-bold text-rose-600">Time Sheet Revise {cs.revision}</p>}
+        <div className="grid grid-cols-[1fr_1.4fr_1fr] items-end border-b-2 border-black pb-1 text-lg font-bold">
+          <span>Job</span>
+          <span>{snap.job.job_no}</span>
+          <span>{snap.job.title}</span>
         </div>
-        <p className="mt-2 text-right text-[11px] font-semibold">**{bahtText(snap.net)}**</p>
 
-        <div className="mt-10 flex gap-3" style={{ breakInside: 'avoid' }}>
-          <SignBox label="ผู้จัดทำ / Prepared by (Purchase)" name={name(cs.submitted_by)} date={cs.submitted_at ? fmtDocDate(cs.submitted_at) : ''} note={cs.submitted_at ? 'ส่งในระบบ' : undefined} />
-          {supervisors.map((s) => (
-            <SignBox key={s.id} label="ผู้ตรวจสอบ / Checked by (หัวหน้างาน)" name={s.name} date={s.at ? fmtDocDate(s.at) : ''} note={s.at ? 'อนุมัติในระบบ' : undefined} />
-          ))}
-          <SignBox label="ผู้อนุมัติ / Approved by" />
+        <div className="mt-8 grid grid-cols-[1fr_1.4fr_1fr] items-baseline gap-y-3">
+          <span className="font-bold">สรุปค่าแรง</span>
+          <span>{snap.job.contractor || '-'}</span>
+          <span className="tabular text-right">{fmtMoney(snap.subtotal)}</span>
+
+          <span>Date:</span>
+          <span>{periodText(snap.period.from, snap.period.to)}</span>
+          <span />
+
+          <span className="text-right pr-6">หัก</span>
+          <span>-{fmtNum(snap.settings.wht_rate)}%</span>
+          <span className="tabular text-right">({fmtMoney(snap.wht)})</span>
         </div>
-        <p className="mt-6 text-[9px] text-slate-500">
-          เอกสารสร้างจากระบบ OSA Timesheet · เลขอ้างอิง {cs.id.slice(0, 8).toUpperCase()}
-          {cs.revision > 0 && ` · Revise ${cs.revision}`} · แนบ Time Sheet ประกอบ
+
+        <div className="mt-10 grid grid-cols-[1fr_1.4fr_1fr]">
+          <span />
+          <div className="col-span-2 grid grid-cols-[1.4fr_1fr] items-center bg-slate-200 px-3 py-3 font-bold">
+            <span>Total</span>
+            <span className="tabular text-right">{fmtMoney(snap.net)}</span>
+          </div>
+        </div>
+
+        <p className="mt-16 text-[9px] text-slate-500">
+          เอกสารสร้างจากระบบ OSA Timesheet · เลขอ้างอิง {cs.id.slice(0, 8).toUpperCase()} · {snap.workers.length} คน · แนบ Time Sheet ประกอบ
         </p>
-      </Paper>
+      </div>
+    </Paper>
   )
 }

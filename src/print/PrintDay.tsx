@@ -1,6 +1,6 @@
 import { useParams } from 'react-router'
 import { ErrorBox, Spinner } from '../components/ui'
-import { fmtDocDate, fmtHours, fmtTime } from '../lib/format'
+import { fmtDocDate, fmtHours, fmtOut, fmtTime } from '../lib/format'
 import { must, useLoad } from '../lib/hooks'
 import { supabase } from '../lib/supabase'
 import type { AttendanceHours, DaySheet } from '../lib/types'
@@ -11,14 +11,14 @@ export async function loadDay(id: string) {
     const [rows, workers, people, settings] = await Promise.all([
       supabase.from('v_attendance_hours').select('*').eq('team_id', sheet.team_id).eq('work_date', sheet.work_date),
       supabase.from('workers').select('id, full_name').eq('job_id', sheet.job_id),
-      supabase.from('profiles').select('id, full_name, email'),
+      supabase.from('profiles').select('id, full_name, email, signature_png'),
       supabase.from('app_settings').select('company_name').eq('id', 1).maybeSingle(),
     ])
     return {
       sheet,
       rows: must(rows) as AttendanceHours[],
       workers: must(workers) as { id: string; full_name: string }[],
-      people: must(people) as { id: string; full_name: string; email: string }[],
+      people: must(people) as { id: string; full_name: string; email: string; signature_png: string | null }[],
       company: (must(settings) as { company_name: string } | null)?.company_name ?? 'OSA Valve Services (Thailand) Co., Ltd.',
     }
 }
@@ -79,7 +79,7 @@ export function DayDoc({ data }: { data: Awaited<ReturnType<typeof loadDay>> }) 
                 <td className="text-center">{i + 1}</td>
                 <td>{nm(r.worker_id)}</td>
                 <td className="text-center">{fmtTime(r.check_in)}</td>
-                <td className="text-center">{r.check_out ? fmtTime(r.check_out) : ''}</td>
+                <td className="text-center">{fmtOut(r.check_in, r.check_out)}</td>
                 <td className="text-center">{holiday ? '' : fmtHours(r.normal_h)}</td>
                 <td className="text-center">{holiday ? '' : fmtHours(r.ot_h)}</td>
                 <td className="text-center">{holiday ? fmtHours(r.normal_h) : ''}</td>
@@ -102,12 +102,14 @@ export function DayDoc({ data }: { data: Awaited<ReturnType<typeof loadDay>> }) 
           <SignBox
             label="Prepared By (หัวหน้างาน)"
             name={pn(sheet.supervisor_approved_by)}
+            signature={sheet.supervisor_approved_at ? people.find((p) => p.id === sheet.supervisor_approved_by)?.signature_png : null}
             date={sheet.supervisor_approved_at ? fmtDocDate(sheet.supervisor_approved_at) : ''}
             note={sheet.supervisor_approved_at ? 'อนุมัติในระบบ' : undefined}
           />
           <SignBox
             label="Approved By (Planner)"
             name={pn(sheet.planner_approved_by)}
+            signature={sheet.planner_approved_at ? people.find((p) => p.id === sheet.planner_approved_by)?.signature_png : null}
             date={sheet.planner_approved_at ? fmtDocDate(sheet.planner_approved_at) : ''}
             note={sheet.planner_approved_at ? 'อนุมัติในระบบ' : undefined}
           />

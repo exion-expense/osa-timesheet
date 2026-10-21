@@ -72,15 +72,24 @@ export async function loadCost(id: string) {
     cs.status === 'draft'
       ? (must(await supabase.rpc('cost_preview', { p_job: cs.job_id, p_from: cs.period_from, p_to: cs.period_to })) as CostSnapshot)
       : (cs.snapshot as CostSnapshot)
-  const [appr, people, teams] = await Promise.all([
+  const [appr, people, teams, days] = await Promise.all([
     supabase.from('cost_sheet_approvals').select('supervisor_id, approved_at').eq('cost_sheet_id', id),
-    supabase.from('profiles').select('id, full_name, email'),
+    supabase.from('profiles').select('id, full_name, email, signature_png'),
     supabase.from('teams').select('supervisor_id').eq('job_id', cs.job_id),
+    supabase.from('day_sheets').select('planner_approved_by, planner_approved_at').eq('job_id', cs.job_id)
+      .gte('work_date', cs.period_from).lte('work_date', cs.period_to).not('planner_approved_by', 'is', null),
   ])
-  const ppl = must(people) as { id: string; full_name: string; email: string }[]
+  const ppl = must(people) as { id: string; full_name: string; email: string; signature_png: string | null }[]
   const name = (uid: string | null) => {
     const p = ppl.find((x) => x.id === uid)
     return p?.full_name || p?.email || ''
+  }
+  const sig = (uid: string | null) => ppl.find((x) => x.id === uid)?.signature_png ?? null
+  // Planner ที่อนุมัติใบรายวันในช่วงนี้ (ปกติคนเดียว) — ใช้วันที่อนุมัติล่าสุด
+  const plannerMap = new Map<string, string>()
+  for (const d of must(days) as { planner_approved_by: string; planner_approved_at: string }[]) {
+    const prev = plannerMap.get(d.planner_approved_by)
+    if (!prev || d.planner_approved_at > prev) plannerMap.set(d.planner_approved_by, d.planner_approved_at)
   }
   const supIds = [...new Set((must(teams) as { supervisor_id: string | null }[]).map((t) => t.supervisor_id).filter(Boolean) as string[])]
   const approvals = must(appr) as { supervisor_id: string; approved_at: string }[]
@@ -88,15 +97,27 @@ export async function loadCost(id: string) {
     cs,
     snap,
     name,
-    supervisors: supIds.map((s) => ({ id: s, name: name(s), at: approvals.find((a) => a.supervisor_id === s)?.approved_at ?? null })),
+    sig,
+    purchaser: cs.submitted_by ? { id: cs.submitted_by, name: name(cs.submitted_by), at: cs.submitted_at, sig: sig(cs.submitted_by) } : null,
+    supervisors: supIds.map((s) => {
+      const at = approvals.find((a) => a.supervisor_id === s)?.approved_at ?? null
+      return { id: s, name: name(s), at, sig: at ? sig(s) : null }
+    }),
+    planners: [...plannerMap.entries()].map(([pid, at]) => ({ id: pid, name: name(pid), at, sig: sig(pid) })),
   }
 }
 
-export function SignBox({ label, name, date, note }: { label: string; name?: string; date?: string; note?: string }) {
+export function SignBox({ label, name, date, note, signature, signatures }: { label: string; name?: string; date?: string; note?: string; signature?: string | null; signatures?: (string | null | undefined)[] }) {
+  const sigs = (signatures ?? [signature]).filter(Boolean) as string[]
   return (
-    <div className="flex-1 border border-black p-2 text-center text-[10px]">
+    <div className="flex-1 border border-black p-2 text-center text-[10px]" style={{ breakInside: 'avoid' }}>
       <p className="text-left">{label}</p>
-      <p className="mt-4 min-h-5 font-semibold">{name}</p>
+      <div className="flex h-[13mm] items-end justify-center">
+        {sigs.map((s, i) => (
+          <img key={i} src={s} alt="" className="max-h-[13mm] object-contain" style={{ maxWidth: `${100 / sigs.length}%` }} />
+        ))}
+      </div>
+      <p className="min-h-5 font-semibold">{name ? `(${name})` : ''}</p>
       {note && <p className="text-[9px] text-emerald-700">{note}</p>}
       <p className="mt-1 border-t border-dashed border-black pt-1">วันที่ / Date {date}</p>
     </div>

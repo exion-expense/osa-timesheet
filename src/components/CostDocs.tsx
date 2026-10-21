@@ -2,7 +2,7 @@ import { FileDown, FileSpreadsheet } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { downloadCsv } from '../lib/csv'
-import { fmtTime } from '../lib/format'
+import { fmtOut, fmtTime } from '../lib/format'
 import { useLoad } from '../lib/hooks'
 import { loadCost } from '../print/common'
 import { SummaryDoc } from '../print/PrintSummary'
@@ -39,7 +39,7 @@ export function CostDocs({ id, tab, onTab }: { id: string; tab: DocTab; onTab: (
       const rows: (string | number)[][] = [['วันที่', 'ชื่อ', 'ตำแหน่ง', 'ทีม', 'ประเภทวัน', 'เวลาเข้า', 'เวลาออก', 'ชม.ปกติ', 'ชม.OT', 'Allowance']]
       for (const w of snap.workers)
         for (const d of w.days)
-          rows.push([d.date, w.name, w.position, w.team, d.holiday ? 'วันหยุด' : 'ปกติ', fmtTime(d.in), d.out ? fmtTime(d.out) : '', d.normal, d.ot,
+          rows.push([d.date, w.name, w.position, w.team, d.holiday ? 'วันหยุด' : 'ปกติ', fmtTime(d.in), fmtOut(d.in, d.out), d.normal, d.ot,
             w.allowances.filter((a) => a.date === d.date).reduce((s, a) => s + Number(a.amount), 0) || ''])
       rows.sort((a, b) => String(a[0]).localeCompare(String(b[0])) || String(a[1]).localeCompare(String(b[1]), 'th'))
       downloadCsv(`TimeSheet_รายวัน_${base}.csv`, rows)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, bahtText, daysBetween, fmtDocDate, isoDow } from './format'
+import { addDays, bahtText, daysBetween, fmtDocDate, fmtOut, isoDow } from './format'
 
 describe('bahtText', () => {
   it('อ่านจำนวนเงินตามเอกสารตัวอย่าง', () => {
@@ -25,5 +25,15 @@ describe('วันที่ (เวลาไทย)', () => {
   it('รูปแบบวันที่ในเอกสาร', () => {
     expect(fmtDocDate('2026-10-02')).toBe('02/10/2026')
     expect(fmtDocDate('2026-10-01T18:30:00Z')).toBe('02/10/2026')
+  })
+})
+
+describe('เวลาออกข้ามเที่ยงคืน', () => {
+  it('วันเดียวกันไม่มี (+1)', () => {
+    expect(fmtOut('2026-10-21T01:00:00Z', '2026-10-21T10:00:00Z')).toBe('17:00')
+  })
+  it('ออกหลังเที่ยงคืนเวลาไทยมี (+1)', () => {
+    // เข้า 08:00 ไทย (01:00Z) ออก 01:00 ไทยของวันถัดไป (18:00Z)
+    expect(fmtOut('2026-10-21T01:00:00Z', '2026-10-21T18:00:00Z')).toBe('01:00 (+1)')
   })
 })

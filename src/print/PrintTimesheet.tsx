@@ -3,7 +3,7 @@ import { ErrorBox, Spinner } from '../components/ui'
 import { dayOfMonth, daysBetween, fmtDocDate, fmtHours, fmtMoney, isoDow, weekdayShort } from '../lib/format'
 import { useLoad } from '../lib/hooks'
 import type { CostWorker } from '../lib/types'
-import { DocHeader, DraftMark, loadCost, Paper, PrintShell } from './common'
+import { DocHeader, DraftMark, loadCost, Paper, PrintShell, SignBox } from './common'
 
 const PER_PAGE = 16
 const ROWS = [
@@ -35,7 +35,7 @@ export default function PrintTimesheet() {
 }
 
 export function TimesheetDoc({ data }: { data: CostDocData }) {
-  const { cs, snap, name, supervisors } = data
+  const { cs, snap, supervisors, purchaser, planners } = data
 
   const days = daysBetween(snap.period.from, snap.period.to)
   const holidaySet = new Set(snap.holidays)
@@ -213,18 +213,31 @@ export function TimesheetDoc({ data }: { data: CostDocData }) {
                   </p>
                   <p>ช่องสีเทา = วันหยุด (×2, OT ×3)</p>
                 </div>
-                <div className="space-y-0.5 text-right">
-                  {cs.submitted_at && (
-                    <p>
-                      จัดทำโดย {name(cs.submitted_by)} · {fmtDocDate(cs.submitted_at)}
-                    </p>
-                  )}
-                  {supervisors.map((s) => (
-                    <p key={s.id}>
-                      อนุมัติโดย {s.name} · {s.at ? fmtDocDate(s.at) : 'รออนุมัติ'}
-                    </p>
-                  ))}
-                </div>
+              </div>
+            )}
+            {last && (
+              <div className="mt-3 flex gap-3" style={{ breakInside: 'avoid' }}>
+                <SignBox
+                  label="ผู้จัดทำ / Prepared by (Purchase)"
+                  name={purchaser?.name}
+                  signature={purchaser?.sig}
+                  date={purchaser?.at ? fmtDocDate(purchaser.at) : ''}
+                  note={purchaser?.at ? 'ส่งในระบบ' : undefined}
+                />
+                <SignBox
+                  label="ผู้ตรวจสอบ / Checked by (หัวหน้างาน)"
+                  name={supervisors.map((s) => s.name).join(', ')}
+                  signatures={supervisors.map((s) => s.sig)}
+                  date={supervisors.length && supervisors.every((s) => s.at) ? fmtDocDate(supervisors.map((s) => s.at!).sort().at(-1)!) : ''}
+                  note={supervisors.length && supervisors.every((s) => s.at) ? 'อนุมัติในระบบ' : supervisors.some((s) => s.at) ? 'อนุมัติบางส่วน' : undefined}
+                />
+                <SignBox
+                  label="ผู้ตรวจสอบเวลา / Verified by (Planner)"
+                  name={planners.map((p) => p.name).join(', ')}
+                  signatures={planners.map((p) => p.sig)}
+                  date={planners.length ? fmtDocDate(planners.map((p) => p.at).sort().at(-1)!) : ''}
+                  note={planners.length ? 'อนุมัติในระบบ' : undefined}
+                />
               </div>
             )}
             {!last && <p className="mt-3 text-right text-[10px]">ต่อหน้าถัดไป →</p>}

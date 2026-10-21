@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router'
 import { Forbidden } from '../components/Guards'
 import { Badge, Button, Card, CardHeader, Empty, ErrorBox, Field, Input, Modal, PageHeader, Select, Spinner, useToast } from '../components/ui'
 import { useAuth } from '../lib/auth'
-import { fmtDateLong, fmtTime, todayYmd } from '../lib/format'
+import { fmtDateLong, fmtOut, fmtTime, todayYmd } from '../lib/format'
 import { must, useLoad } from '../lib/hooks'
 import { supabase } from '../lib/supabase'
 import type { Job, Team, Worker } from '../lib/types'
@@ -169,7 +169,7 @@ export default function TeamPage() {
                           )}
                         </td>
                         <td className="tabular px-3 py-3 text-center">{a ? fmtTime(a.check_in) : '–'}</td>
-                        <td className="tabular px-3 py-3 text-center">{a?.check_out ? fmtTime(a.check_out) : a ? <Badge tone="green">อยู่</Badge> : '–'}</td>
+                        <td className="tabular px-3 py-3 text-center">{a?.check_out ? fmtOut(a.check_in, a.check_out) : a ? <Badge tone="green">อยู่</Badge> : '–'}</td>
                         <td className="px-5 py-3">
                           <div className="flex justify-end gap-1">
                             {w.active && p && (
