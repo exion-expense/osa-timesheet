@@ -9,12 +9,19 @@ export default function PrintSummary() {
   const { data, error } = useLoad(() => loadCost(id), [id])
   if (error) return <ErrorBox message={error} />
   if (!data) return <Spinner />
+  return (
+    <PrintShell title={`สรุปค่าแรง ${data.snap.job.job_no}`}>
+      <SummaryDoc data={data} />
+    </PrintShell>
+  )
+}
+
+export function SummaryDoc({ data }: { data: Awaited<ReturnType<typeof loadCost>> }) {
   const { cs, snap, name, supervisors } = data
   const sum = (k: 'n1' | 'ot15' | 'h2' | 'h3') => snap.workers.reduce((s, w) => s + w.hours[k], 0)
   const allowTotal = snap.workers.reduce((s, w) => s + w.allowance_total, 0)
 
   return (
-    <PrintShell title={`สรุปค่าแรง ${snap.job.job_no}`}>
       <Paper className="mx-auto">
         <DraftMark show={cs.status !== 'approved'} />
         <DocHeader
@@ -128,6 +135,5 @@ export default function PrintSummary() {
           {cs.revision > 0 && ` · Revise ${cs.revision}`} · แนบ Time Sheet ประกอบ
         </p>
       </Paper>
-    </PrintShell>
   )
 }

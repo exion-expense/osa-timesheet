@@ -1,11 +1,20 @@
 import { ArrowLeft, Printer } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Button } from '../components/ui'
 import { must } from '../lib/hooks'
 import { supabase } from '../lib/supabase'
 import type { CostSheet, CostSnapshot } from '../lib/types'
 
 export function PrintShell({ children, landscape, title }: { children: ReactNode; landscape?: boolean; title: string }) {
+  // เปิดจากปุ่ม Export PDF (?auto=1) → เปิดหน้าต่างพิมพ์ให้เลือก "บันทึกเป็น PDF" อัตโนมัติ
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('auto') !== '1') return
+    let cancelled = false
+    document.fonts.ready.then(() => setTimeout(() => !cancelled && window.print(), 500))
+    return () => {
+      cancelled = true
+    }
+  }, [])
   return (
     <div className="min-h-screen bg-slate-200 print:bg-white">
       <div className="no-print sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-300 bg-white px-4 py-3">

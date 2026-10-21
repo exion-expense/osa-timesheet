@@ -6,9 +6,7 @@ import { supabase } from '../lib/supabase'
 import type { AttendanceHours, DaySheet } from '../lib/types'
 import { DocHeader, DraftMark, Paper, PrintShell, SignBox } from './common'
 
-export default function PrintDay() {
-  const { id = '' } = useParams()
-  const { data, error } = useLoad(async () => {
+export async function loadDay(id: string) {
     const sheet = must(await supabase.from('v_day_sheets').select('*').eq('id', id).single()) as DaySheet
     const [rows, workers, people, settings] = await Promise.all([
       supabase.from('v_attendance_hours').select('*').eq('team_id', sheet.team_id).eq('work_date', sheet.work_date),
@@ -23,10 +21,21 @@ export default function PrintDay() {
       people: must(people) as { id: string; full_name: string; email: string }[],
       company: (must(settings) as { company_name: string } | null)?.company_name ?? 'OSA Valve Services (Thailand) Co., Ltd.',
     }
-  }, [id])
+}
 
+export default function PrintDay() {
+  const { id = '' } = useParams()
+  const { data, error } = useLoad(() => loadDay(id), [id])
   if (error) return <ErrorBox message={error} />
   if (!data) return <Spinner />
+  return (
+    <PrintShell title={`รายชื่อทีมงาน ${data.sheet.job_no} ${fmtDocDate(data.sheet.work_date)}`}>
+      <DayDoc data={data} />
+    </PrintShell>
+  )
+}
+
+export function DayDoc({ data }: { data: Awaited<ReturnType<typeof loadDay>> }) {
   const { sheet, rows, workers, people, company } = data
   const nm = (w: string) => workers.find((x) => x.id === w)?.full_name ?? ''
   const pn = (u: string | null) => people.find((p) => p.id === u)?.full_name || people.find((p) => p.id === u)?.email || ''
@@ -35,7 +44,6 @@ export default function PrintDay() {
   const blank = Math.max(0, 15 - sorted.length)
 
   return (
-    <PrintShell title={`รายชื่อทีมงาน ${sheet.job_no} ${fmtDocDate(sheet.work_date)}`}>
       <Paper className="mx-auto">
         <DraftMark show={!sheet.locked} />
         <DocHeader company={company} />
@@ -105,6 +113,5 @@ export default function PrintDay() {
           />
         </div>
       </Paper>
-    </PrintShell>
   )
 }

@@ -20,11 +20,21 @@ const monthTitle = (from: string, to: string) => {
   return a === b ? a : `${a} – ${b}`
 }
 
+export type CostDocData = Awaited<ReturnType<typeof loadCost>>
+
 export default function PrintTimesheet() {
   const { id = '' } = useParams()
   const { data, error } = useLoad(() => loadCost(id), [id])
   if (error) return <ErrorBox message={error} />
   if (!data) return <Spinner />
+  return (
+    <PrintShell landscape title={`Time Sheet ${data.snap.job.job_no}`}>
+      <TimesheetDoc data={data} />
+    </PrintShell>
+  )
+}
+
+export function TimesheetDoc({ data }: { data: CostDocData }) {
   const { cs, snap, name, supervisors } = data
 
   const days = daysBetween(snap.period.from, snap.period.to)
@@ -45,7 +55,7 @@ export default function PrintTimesheet() {
   }
 
   return (
-    <PrintShell landscape title={`Time Sheet ${snap.job.job_no}`}>
+    <>
       {chunks.map((chunk, ci) => {
         const last = ci === chunks.length - 1
         return (
@@ -221,6 +231,6 @@ export default function PrintTimesheet() {
           </Paper>
         )
       })}
-    </PrintShell>
+    </>
   )
 }

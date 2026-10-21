@@ -1,7 +1,9 @@
-import { ArrowLeft, Check, CircleDollarSign, Pencil, Plus, Printer, Trash2, Undo2, X } from 'lucide-react'
+import { ArrowLeft, Check, CircleDollarSign, FileDown, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
+import { DocPreview } from '../components/DocPreview'
 import { Badge, Button, Card, CardHeader, ErrorBox, Field, Input, Modal, PageHeader, Select, Spinner, Textarea, useToast } from '../components/ui'
+import { DayDoc, loadDay } from '../print/PrintDay'
 import { useAuth } from '../lib/auth'
 import { bkkIso, fmtDateLong, fmtDateTime, fmtHours, fmtMoney, fmtTime } from '../lib/format'
 import { must, useLoad } from '../lib/hooks'
@@ -149,9 +151,9 @@ export default function DaySheet() {
         sub={`${sheet.team_name} · ${rows.length} คน`}
         right={
           <>
-            <Link to={`/print/day/${sheet.id}`} target="_blank">
+            <Link to={`/print/day/${sheet.id}?auto=1`} target="_blank">
               <Button variant="secondary">
-                <Printer className="size-4" /> พิมพ์
+                <FileDown className="size-4" /> Export PDF
               </Button>
             </Link>
           </>
@@ -323,6 +325,23 @@ export default function DaySheet() {
         </div>
       </Card>
 
+      <Card className="mt-6">
+        <CardHeader
+          title="เอกสาร: รายชื่อทีมงาน"
+          sub={sheet.locked ? 'อนุมัติครบแล้ว' : 'ยังอนุมัติไม่ครบ เอกสารจะมีลายน้ำ "ร่าง"'}
+          right={
+            <Link to={`/print/day/${sheet.id}?auto=1`} target="_blank">
+              <Button size="sm">
+                <FileDown className="size-4" /> Export PDF
+              </Button>
+            </Link>
+          }
+        />
+        <div className="p-5">
+          <DayPreview id={sheet.id} version={`${sheet.supervisor_approved_at}|${sheet.planner_approved_at}|${rows.map((r) => r.updated_at).join()}`} />
+        </div>
+      </Card>
+
       <Modal
         open={Boolean(editAtt)}
         onClose={() => setEditAtt(null)}
@@ -477,5 +496,16 @@ function Step({ label, at, by }: { label: string; at: string | null; by: string 
         <p className="text-xs text-slate-500">{at ? `${by} · ${fmtDateTime(at)}` : 'รออนุมัติ'}</p>
       </div>
     </div>
+  )
+}
+
+function DayPreview({ id, version }: { id: string; version: string }) {
+  const { data, error } = useLoad(() => loadDay(id), [id, version])
+  if (error) return <ErrorBox message={error} />
+  if (!data) return <Spinner />
+  return (
+    <DocPreview>
+      <DayDoc data={data} />
+    </DocPreview>
   )
 }

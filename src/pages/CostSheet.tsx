@@ -1,6 +1,7 @@
-import { AlertTriangle, ArrowLeft, Check, FileText, Printer, RotateCcw, Send, Trash2, X } from 'lucide-react'
-import { useState } from 'react'
+import { AlertTriangle, ArrowLeft, Check, FileText, RotateCcw, Send, Trash2, X } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import { CostDocs, type DocTab } from '../components/CostDocs'
 import { TermsStatus } from '../components/TermsStatus'
 import { Badge, Button, Card, CardHeader, ErrorBox, Field, Input, Modal, PageHeader, Spinner, Stat, Textarea, useToast } from '../components/ui'
 import { useAuth } from '../lib/auth'
@@ -16,6 +17,12 @@ export default function CostSheet() {
   const toast = useToast()
   const nav = useNavigate()
   const [busy, setBusy] = useState(false)
+  const [docTab, setDocTab] = useState<DocTab>('timesheet')
+  const docsRef = useRef<HTMLDivElement>(null)
+  const showDoc = (t: DocTab) => {
+    setDocTab(t)
+    docsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
   const [reason, setReason] = useState<{ kind: 'reject' | 'reopen'; text: string } | null>(null)
   const [period, setPeriod] = useState<{ from: string; to: string } | null>(null)
 
@@ -131,16 +138,12 @@ export default function CostSheet() {
         }
         right={
           <>
-            <Link to={`/print/timesheet/${cs.id}`} target="_blank">
-              <Button variant="secondary">
-                <Printer className="size-4" /> Time Sheet
-              </Button>
-            </Link>
-            <Link to={`/print/summary/${cs.id}`} target="_blank">
-              <Button variant="secondary">
-                <FileText className="size-4" /> สรุปค่าแรง
-              </Button>
-            </Link>
+            <Button variant="secondary" onClick={() => showDoc('timesheet')}>
+              <FileText className="size-4" /> ดู Time Sheet
+            </Button>
+            <Button variant="secondary" onClick={() => showDoc('summary')}>
+              <FileText className="size-4" /> ดูสรุปค่าแรง
+            </Button>
           </>
         }
       />
@@ -349,6 +352,10 @@ export default function CostSheet() {
           </table>
         </div>
       </Card>
+
+      <div ref={docsRef} className="mt-6 scroll-mt-6">
+        <CostDocs key={snap.generated_at} id={id} tab={docTab} onTab={setDocTab} />
+      </div>
 
       <Modal
         open={Boolean(reason)}
