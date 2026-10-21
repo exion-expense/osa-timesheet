@@ -51,7 +51,7 @@ export default function Dashboard() {
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="อยู่หน้างานตอนนี้" value={fmtNum(d.on_site)} sub={`มาวันนี้ ${d.checked_in_today} คน`} icon={<HardHat className="size-5" />} tone="green" />
-        <Link to="/inbox">
+        <Link to={is('purchase') ? '/costs' : '/inbox'}>
           <Stat label="งานรอฉัน" value={fmtNum(myPending)} sub="กดเพื่อดูรายการ" icon={<ClipboardCheck className="size-5" />} tone={myPending ? 'amber' : 'gray'} />
         </Link>
         <Stat label="จ็อบที่เปิดอยู่" value={fmtNum(d.active_jobs)} icon={<BriefcaseBusiness className="size-5" />} />

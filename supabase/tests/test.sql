@@ -176,6 +176,9 @@ insert into public.worker_rates (worker_id, day_rate) values ('30000000-0000-000
 select pg_temp.ok(pg_temp.raises($q$update public.jobs set title = 'x'$q$), 'purchase แก้ชื่อจ็อบไม่ได้');
 update public.jobs set workweek = 6, evening_break = true;
 select pg_temp.ok((select terms_confirmed_at is null from public.jobs), 'ตั้งค่าเดิมซ้ำ ไม่ถือว่ายืนยัน');
+select pg_temp.ok((select count(*) = 1 and min(period_from) = :'sun'::date - 1 and max(period_to) = :'sun'::date and min(status) = 'draft'
+                    from public.cost_sheets), 'วันที่อนุมัติครบ ไหลเข้าใบคิดราคาร่างอัตโนมัติ (เสาร์-อาทิตย์ ใบเดียว)');
+delete from public.cost_sheets;  -- ทดสอบต่อด้วยใบที่กำหนด id เอง
 insert into public.cost_sheets (id, job_id, period_from, period_to) values
   ('40000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', :'sun'::date - 1, :'sun'::date);
 select public.cost_preview('10000000-0000-0000-0000-000000000001', :'sun'::date - 1, :'sun'::date) as pv \gset

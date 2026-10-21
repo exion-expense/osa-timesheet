@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, ClipboardCheck, History, KeyRound, LayoutDashboard, LogOut, Menu, Settings, Users, X } from 'lucide-react'
+import { BriefcaseBusiness, Calculator, ClipboardCheck, History, KeyRound, LayoutDashboard, LogOut, Menu, Settings, Users, X } from 'lucide-react'
 import { Suspense, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { useAuth } from '../lib/auth'
@@ -19,6 +19,7 @@ export function Layout() {
     { to: '/', label: 'ภาพรวม', icon: LayoutDashboard, end: true },
     { to: '/inbox', label: 'งานรออนุมัติ', icon: ClipboardCheck },
     { to: '/jobs', label: 'จ็อบ', icon: BriefcaseBusiness },
+    ...(is('purchase', 'admin', 'planner') ? [{ to: '/costs', label: 'คิดราคา', icon: Calculator }] : []),
     ...(is('admin')
       ? [
           { to: '/admin/users', label: 'ผู้ใช้งาน', icon: Users },

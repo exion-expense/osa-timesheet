@@ -23,6 +23,7 @@ const JobDetail = lazy(() => import('./pages/JobDetail'))
 const TeamPage = lazy(() => import('./pages/TeamPage'))
 const DaySheet = lazy(() => import('./pages/DaySheet'))
 const CostSheet = lazy(() => import('./pages/CostSheet'))
+const Costs = lazy(() => import('./pages/Costs'))
 const Users = lazy(() => import('./pages/admin/Users'))
 const Settings = lazy(() => import('./pages/admin/Settings'))
 const Audit = lazy(() => import('./pages/admin/Audit'))
@@ -51,6 +52,7 @@ const router = createBrowserRouter([
           { path: 'jobs/:id/edit', element: <JobForm /> },
           { path: 'teams/:id', element: <TeamPage /> },
           { path: 'days/:id', element: <DaySheet /> },
+          { path: 'costs', element: <Costs /> },
           { path: 'cost/:id', element: <CostSheet /> },
           { path: 'admin/users', element: <Users /> },
           { path: 'admin/settings', element: <Settings /> },
