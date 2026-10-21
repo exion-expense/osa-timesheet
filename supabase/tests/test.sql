@@ -104,12 +104,23 @@ select pg_temp.ok(pg_temp.raises($q$select public.kiosk_check_pin('x', null, nul
 reset role; select qr_token as tok from public.teams where id = '20000000-0000-0000-0000-000000000001' \gset
 set role anon;
 select pg_temp.ok((public.kiosk_team('bad') ->> 'ok')::boolean = false, 'QR ผิดถูกปฏิเสธ');
-select pg_temp.ok(jsonb_array_length(public.kiosk_team(:'tok') -> 'workers') = 3, 'QR ถูกได้รายชื่อทีม');
-select pg_temp.ok(public.kiosk_status(:'tok', '30000000-0000-0000-0000-000000000001', '0000') ->> 'error' like 'หัวหน้างานยังไม่ได้สร้าง%', 'ยังไม่มี PIN');
+select pg_temp.ok(public.kiosk_team(:'tok') ->> 'error' like 'หัวหน้างานยังไม่เปิด%', 'ยังไม่เปิดลงเวลา สแกน QR แล้วถูกปฏิเสธ');
+select pg_temp.ok(public.kiosk_status(:'tok', '30000000-0000-0000-0000-000000000001', '0000') ->> 'error' like 'หัวหน้างานยังไม่เปิด%', 'ยังไม่เปิด ใส่ PIN ไม่ได้');
+select pg_temp.ok(pg_temp.raises($q$select public.open_day('20000000-0000-0000-0000-000000000001')$q$), 'anon เปิดลงเวลาไม่ได้');
 
 reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
 select pg_temp.ok(public.generate_pins('20000000-0000-0000-0000-000000000001') = 3, 'หัวหน้าสร้าง PIN 3 คน');
 select pg_temp.ok(public.generate_pins('20000000-0000-0000-0000-000000000001') = 0, 'สร้างซ้ำไม่ทับของเดิม');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000002');
+select pg_temp.ok(pg_temp.raises($q$select public.open_day('20000000-0000-0000-0000-000000000001')$q$), 'หัวหน้าทีมอื่นเปิดลงเวลาแทนไม่ได้');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
+select pg_temp.ok(pg_temp.raises($q$select public.open_day('20000000-0000-0000-0000-000000000001')$q$), 'Planner เปิดลงเวลาไม่ได้');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+select pg_temp.ok((public.open_day('20000000-0000-0000-0000-000000000001') ->> 'pins_created')::int = 0, 'หัวหน้าเปิดลงเวลาวันนี้ได้');
+select pg_temp.ok((select opened_by = '00000000-0000-0000-0000-000000000001' from public.day_sheets), 'บันทึกว่าใครเปิด');
+reset role; set role anon; select set_config('request.jwt.claims', '{"role":"anon"}', false);
+select pg_temp.ok(jsonb_array_length(public.kiosk_team(:'tok') -> 'workers') = 3, 'เปิดแล้ว QR ได้รายชื่อทีม');
+reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
 select pin as pin1 from public.daily_pins where worker_id = '30000000-0000-0000-0000-000000000001' \gset
 select (select pin from public.daily_pins where worker_id = '30000000-0000-0000-0000-000000000002') as pin2 \gset
 select pg_temp.ok((select count(distinct pin) from public.daily_pins) = 3, 'PIN ในทีมไม่ซ้ำกัน');

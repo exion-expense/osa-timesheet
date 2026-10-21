@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, Calculator, ClipboardCheck, History, KeyRound, LayoutDashboard, LogOut, Menu, Settings, Users, X } from 'lucide-react'
+import { BriefcaseBusiness, Calculator, CalendarClock, ClipboardCheck, History, KeyRound, LayoutDashboard, LogOut, Menu, Settings, Users, X } from 'lucide-react'
 import { Suspense, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { useAuth } from '../lib/auth'
@@ -16,6 +16,7 @@ export function Layout() {
   const [pwOpen, setPwOpen] = useState(false)
 
   const nav = [
+    ...(is('supervisor', 'admin') ? [{ to: '/today', label: 'ลงเวลาวันนี้', icon: CalendarClock }] : []),
     { to: '/', label: 'ภาพรวม', icon: LayoutDashboard, end: true },
     { to: '/inbox', label: 'งานรออนุมัติ', icon: ClipboardCheck },
     { to: '/jobs', label: 'จ็อบ', icon: BriefcaseBusiness },

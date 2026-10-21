@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarDays, ChevronRight, FileSpreadsheet, Pencil, Plus, QrCode, UserRound, Users } from 'lucide-react'
+import { ArrowLeft, CalendarDays, ChevronRight, FileSpreadsheet, Pencil, Plus, UserRound, Users } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { TermsStatus } from '../components/TermsStatus'
@@ -164,14 +164,14 @@ export default function JobDetail() {
                 </div>
                 <div className="mt-4 flex gap-2">
                   {mine && (
-                    <Link to={`/teams/${t.id}`} className="flex-1">
-                      <Button className="w-full">จัดการทีม / PIN</Button>
+                    <Link to={`/today?team=${t.id}`} className="flex-1">
+                      <Button className="w-full">ลงเวลาวันนี้</Button>
                     </Link>
                   )}
                   {mine && (
-                    <Link to={`/print/qr/${t.id}`} target="_blank">
-                      <Button variant="secondary" title="พิมพ์ QR">
-                        <QrCode className="size-4" />
+                    <Link to={`/teams/${t.id}`}>
+                      <Button variant="secondary" title="จัดการรายชื่อ">
+                        <Users className="size-4" />
                       </Button>
                     </Link>
                   )}

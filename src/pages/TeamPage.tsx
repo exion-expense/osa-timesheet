@@ -1,6 +1,5 @@
-import { ArrowLeft, Copy, Eye, EyeOff, KeyRound, Lock, Pencil, Printer, RefreshCw, Share2, UserMinus, UserPlus } from 'lucide-react'
-import QRCode from 'qrcode'
-import { useEffect, useState } from 'react'
+import { ArrowLeft, CalendarClock, Eye, EyeOff, Lock, Pencil, Printer, RefreshCw, UserMinus, UserPlus } from 'lucide-react'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { Forbidden } from '../components/Guards'
 import { Badge, Button, Card, CardHeader, Empty, ErrorBox, Field, Input, Modal, PageHeader, Select, Spinner, useToast } from '../components/ui'
@@ -22,7 +21,6 @@ export default function TeamPage() {
   const { is, profile } = useAuth()
   const toast = useToast()
   const [showPins, setShowPins] = useState(false)
-  const [qr, setQr] = useState<string>('')
   const [edit, setEdit] = useState<Partial<Worker> | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -50,9 +48,6 @@ export default function TeamPage() {
     }
   }, [id])
 
-  useEffect(() => {
-    if (data?.team.qr_token) QRCode.toDataURL(kioskUrl(data.team.qr_token), { width: 480, margin: 1, errorCorrectionLevel: 'M' }).then(setQr)
-  }, [data?.team.qr_token])
 
   if (loading && !data) return <Spinner />
   if (error || !data) return <ErrorBox message={error ?? 'ไม่พบทีม'} onRetry={reload} />
@@ -61,8 +56,6 @@ export default function TeamPage() {
 
   const pinOf = (w: string) => pins.find((p) => p.worker_id === w)
   const attOf = (w: string) => att.find((a) => a.worker_id === w)
-  const active = workers.filter((w) => w.active)
-  const missingPins = active.filter((w) => !pinOf(w.id)).length
 
   async function genPins(worker?: string) {
     setBusy(true)
@@ -96,15 +89,6 @@ export default function TeamPage() {
     reload()
   }
 
-  async function copyLink() {
-    await navigator.clipboard.writeText(kioskUrl(team.qr_token))
-    toast.ok('คัดลอกลิงก์แล้ว')
-  }
-  async function share() {
-    if (navigator.share) await navigator.share({ title: `ลงเวลา ${job.job_no} ${team.name}`, url: kioskUrl(team.qr_token) }).catch(() => {})
-    else copyLink()
-  }
-
   return (
     <>
       <PageHeader
@@ -135,9 +119,11 @@ export default function TeamPage() {
                   {showPins ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   {showPins ? 'ซ่อน PIN' : 'แสดง PIN'}
                 </Button>
-                <Button size="sm" onClick={() => genPins()} loading={busy} disabled={missingPins === 0}>
-                  <KeyRound className="size-4" /> {missingPins > 0 ? `สร้าง PIN วันนี้ (${missingPins})` : 'PIN ครบแล้ว'}
-                </Button>
+                <Link to={`/today?team=${team.id}`}>
+                  <Button size="sm">
+                    <CalendarClock className="size-4" /> เปิดลงเวลา / PIN วันนี้
+                  </Button>
+                </Link>
               </>
             }
           />
@@ -214,23 +200,18 @@ export default function TeamPage() {
         </Card>
 
         <Card className="h-fit">
-          <CardHeader title="QR สำหรับลงเวลา" sub="ติดไว้ที่หน้างาน ผู้รับเหมาสแกนด้วยกล้องมือถือ" />
-          <div className="p-5">
-            {qr ? <img src={qr} alt="QR ลงเวลา" className="mx-auto w-full max-w-64 rounded-xl border border-slate-200" /> : <Spinner />}
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-              <Link to={`/print/qr/${team.id}`} target="_blank" className="block">
-                <Button variant="secondary" size="sm" className="w-full">
-                  <Printer className="size-4" /> พิมพ์
-                </Button>
-              </Link>
-              <Button variant="secondary" size="sm" className="w-full" onClick={copyLink}>
-                <Copy className="size-4" /> คัดลอก
+          <CardHeader title="ลงเวลาวันนี้" sub="เปิดลงเวลา, PIN ประจำวัน และ QR อยู่ที่หน้าลงเวลาวันนี้" />
+          <div className="space-y-3 p-5">
+            <Link to={`/today?team=${team.id}`} className="block">
+              <Button className="w-full">
+                <CalendarClock className="size-4" /> ไปหน้าลงเวลาวันนี้
               </Button>
-              <Button variant="secondary" size="sm" className="w-full" onClick={share}>
-                <Share2 className="size-4" /> แชร์
+            </Link>
+            <Link to={`/print/qr/${team.id}`} target="_blank" className="block">
+              <Button variant="secondary" size="sm" className="w-full">
+                <Printer className="size-4" /> พิมพ์ป้าย QR
               </Button>
-            </div>
-            <p className="mt-3 text-xs text-slate-500">ลงเวลาได้เฉพาะช่วงวันที่ของจ็อบ และต้องมี PIN ของวันนั้นจากหัวหน้างาน</p>
+            </Link>
           </div>
         </Card>
       </div>
