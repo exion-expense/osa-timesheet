@@ -187,11 +187,11 @@ insert into public.worker_rates (worker_id, day_rate) values ('30000000-0000-000
 select pg_temp.ok(pg_temp.raises($q$update public.jobs set title = 'x'$q$), 'purchase แก้ชื่อจ็อบไม่ได้');
 update public.jobs set workweek = 6, evening_break = true;
 select pg_temp.ok((select terms_confirmed_at is null from public.jobs), 'ตั้งค่าเดิมซ้ำ ไม่ถือว่ายืนยัน');
-select pg_temp.ok((select count(*) = 1 and min(period_from) = :'sun'::date - 1 and max(period_to) = :'sun'::date and min(status) = 'draft'
-                    from public.cost_sheets), 'วันที่อนุมัติครบ ไหลเข้าใบคิดราคาร่างอัตโนมัติ (เสาร์-อาทิตย์ ใบเดียว)');
+select pg_temp.ok((select count(*) = 1 and min(period_from) <= :'sun'::date - 1 and max(period_to) >= :'sun'::date and min(status) = 'draft'
+                    from public.cost_sheets), 'มีใบคิดราคาร่างครอบช่วงจ็อบตั้งแต่สร้างจ็อบ (รวมวันที่อนุมัติแล้ว)');
 delete from public.cost_sheets;  -- ทดสอบต่อด้วยใบที่กำหนด id เอง
 insert into public.cost_sheets (id, job_id, period_from, period_to) values
-  ('40000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', :'sun'::date - 1, :'sun'::date);
+  ('40000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', :'sun'::date - 1, :'sun'::date + 2);
 select public.cost_preview('10000000-0000-0000-0000-000000000001', :'sun'::date - 1, :'sun'::date) as pv \gset
 -- สมชาย 1100/วัน → 137.5/ชม: เสาร์ 8 ปกติ + 3.5 OT, อาทิตย์ 8 ×2 + 4.5 ×3, ค่ารถ 50
 --   = 1100 + 3.5*206.25 + 8*275 + 4.5*412.5 + 50 = 1100 + 721.875→721.88 + 2200 + 1856.25 + 50 = 5928.13
@@ -201,8 +201,9 @@ select pg_temp.ok((:'pv'::jsonb ->> 'wht')::numeric = 203.34 and (:'pv'::jsonb -
 select pg_temp.ok(pg_temp.raises($q$select public.submit_cost_sheet('40000000-0000-0000-0000-000000000001')$q$), 'ส่งไม่ได้ถ้ายังไม่ยืนยันเงื่อนไข');
 update public.jobs set terms_confirmed_at = now(), terms_confirmed_by = '00000000-0000-0000-0000-00000000000a';
 select pg_temp.ok((select terms_confirmed_by = '00000000-0000-0000-0000-0000000000c1' from public.jobs), 'ยืนยันเงื่อนไขแล้ว และปลอมชื่อผู้ยืนยันไม่ได้');
-select public.submit_cost_sheet('40000000-0000-0000-0000-000000000001');
-select pg_temp.ok((select status from public.cost_sheets) = 'submitted', 'ส่งอนุมัติแล้ว');
+select public.submit_cost_sheet('40000000-0000-0000-0000-000000000001', :'sun'::date);
+select pg_temp.ok((select status = 'submitted' and period_to = :'sun'::date from public.cost_sheets where id = '40000000-0000-0000-0000-000000000001'), 'ส่งถึงวันที่ที่เลือก (ตัดช่วง)');
+select pg_temp.ok((select count(*) = 1 from public.cost_sheets where status = 'draft' and period_from = :'sun'::date + 1 and period_to = :'sun'::date + 2), 'วันที่เหลือย้ายไปใบร่างใหม่');
 select pg_temp.ok(pg_temp.raises($q$update public.cost_sheets set net_total = 1$q$), 'แก้ยอดเงินหลังส่งไม่ได้');
 
 reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-000000000002');

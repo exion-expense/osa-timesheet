@@ -5,7 +5,7 @@ import { CostDocs, type DocTab } from '../components/CostDocs'
 import { TermsStatus } from '../components/TermsStatus'
 import { Badge, Button, Card, CardHeader, ErrorBox, Field, Input, Modal, PageHeader, Spinner, Stat, Textarea, useToast } from '../components/ui'
 import { useAuth } from '../lib/auth'
-import { fmtDate, fmtDateTime, fmtHours, fmtMoney, fmtNum } from '../lib/format'
+import { addDays, fmtDate, fmtDateTime, fmtHours, fmtMoney, fmtNum, todayYmd } from '../lib/format'
 import { must, useLoad } from '../lib/hooks'
 import { CostBadge } from '../lib/status'
 import { supabase } from '../lib/supabase'
@@ -25,11 +25,13 @@ export default function CostSheet() {
   }
   const [reason, setReason] = useState<{ kind: 'reject' | 'reopen'; text: string } | null>(null)
   const [period, setPeriod] = useState<{ from: string; to: string } | null>(null)
+  const [sendTo, setSendTo] = useState<string | null>(null)
 
   const { data, error, loading, reload } = useLoad(async () => {
     const cs = must(await supabase.from('cost_sheets').select('*').eq('id', id).single()) as CS
-    const [job, teams, appr] = await Promise.all([
+    const [job, days, teams, appr] = await Promise.all([
       supabase.from('jobs').select('*').eq('id', cs.job_id).single(),
+      supabase.from('day_sheets').select('work_date, supervisor_approved_at, planner_approved_at').eq('job_id', cs.job_id).gte('work_date', cs.period_from).lte('work_date', cs.period_to),
       supabase.from('teams').select('supervisor_id, supervisor:profiles(id, full_name, email)').eq('job_id', cs.job_id),
       supabase.from('cost_sheet_approvals').select('supervisor_id, approved_at').eq('cost_sheet_id', id),
     ])
@@ -41,12 +43,20 @@ export default function CostSheet() {
     ;(must(teams) as unknown as { supervisor: { id: string; full_name: string; email: string } | null }[]).forEach(
       (t) => t.supervisor && sups.set(t.supervisor.id, t.supervisor.full_name || t.supervisor.email),
     )
-    return { cs, job: must(job) as Job, snap, sups, appr: must(appr) as { supervisor_id: string; approved_at: string }[] }
+    const dayRows = must(days) as { work_date: string; supervisor_approved_at: string | null; planner_approved_at: string | null }[]
+    return { cs, job: must(job) as Job, snap, sups, appr: must(appr) as { supervisor_id: string; approved_at: string }[], dayRows }
   }, [id])
 
   if (loading && !data) return <Spinner />
   if (error || !data) return <ErrorBox message={error ?? 'ไม่พบใบคิดราคา'} onRetry={reload} />
-  const { cs, job, snap, sups, appr } = data
+  const { cs, job, snap, sups, appr, dayRows } = data
+  // ส่งได้ถึงวันไหน: ก่อนวันแรกที่ยังอนุมัติไม่ครบ และไม่เกินเมื่อวาน (ถ้าจ็อบยังไม่จบ)
+  const today = todayYmd()
+  const pendingDates = [...new Set(dayRows.filter((d) => !d.supervisor_approved_at || !d.planner_approved_at).map((d) => d.work_date))].sort()
+  const approvedDates = [...new Set(dayRows.filter((d) => d.supervisor_approved_at && d.planner_approved_at).map((d) => d.work_date))].sort()
+  const maxCut = cs.period_to < today ? cs.period_to : addDays(today, -1)
+  const cutLimit = pendingDates.length && addDays(pendingDates[0], -1) < maxCut ? addDays(pendingDates[0], -1) : maxCut
+  const readyDays = approvedDates.filter((d) => d <= cutLimit)
   const draft = cs.status === 'draft'
   const canEdit = draft && is('purchase', 'admin')
   const isJobSup = is('supervisor') && sups.has(profile?.id ?? '')
@@ -106,9 +116,11 @@ export default function CostSheet() {
 
   const blockers = [
     !job.terms_confirmed_at && 'ยังไม่ได้ยืนยันเงื่อนไขคิดราคา (5/6 วัน และพักเย็น)',
-    snap.pending_days > 0 && `ยังมีใบลงเวลารายวัน ${snap.pending_days} ใบที่อนุมัติไม่ครบ`,
+    readyDays.length === 0 &&
+      (pendingDates.length && pendingDates[0] <= maxCut
+        ? `รออนุมัติใบลงเวลาวันที่ ${fmtDate(pendingDates[0])} ก่อน (ต้องส่งต่อเนื่องตั้งแต่ ${fmtDate(cs.period_from)})`
+        : 'ยังไม่มีวันที่อนุมัติครบ 2 ชั้นที่พร้อมส่ง'),
     snap.missing_rates > 0 && `ยังไม่ได้ใส่ค่าแรง ${snap.missing_rates} คน`,
-    snap.workers.length === 0 && 'ไม่มีข้อมูลในช่วงวันที่นี้',
   ].filter(Boolean) as string[]
 
   return (
@@ -226,7 +238,12 @@ export default function CostSheet() {
                 ))}
               </ul>
             )}
-            {draft && blockers.length === 0 && <span className="text-emerald-700">พร้อมส่งให้หัวหน้างานอนุมัติ</span>}
+            {draft && blockers.length === 0 && (
+              <span className="text-emerald-700">
+                พร้อมส่งถึงวันที่ {fmtDate(cutLimit)} ({readyDays.length} วันที่อนุมัติครบ)
+                {pendingDates.length > 0 && <span className="block text-xs text-amber-700">วันที่ยังรออนุมัติ: {pendingDates.map((d) => fmtDate(d)).join(', ')}</span>}
+              </span>
+            )}
             {cs.status === 'submitted' && <span>ส่งเมื่อ {fmtDateTime(cs.submitted_at)} · ตัวเลขถูกล็อกแล้ว</span>}
             {cs.status === 'approved' && <span className="text-emerald-700">อนุมัติครบเมื่อ {fmtDateTime(cs.approved_at)} · พิมพ์เอกสารแนบใบขอซื้อได้</span>}
           </div>
@@ -236,7 +253,7 @@ export default function CostSheet() {
                 <Button variant="ghost" onClick={remove}>
                   <Trash2 className="size-4" /> ลบร่าง
                 </Button>
-                <Button loading={busy} disabled={blockers.length > 0} onClick={() => call('submit_cost_sheet', { p_id: id }, 'ส่งให้หัวหน้างานอนุมัติแล้ว')}>
+                <Button loading={busy} disabled={blockers.length > 0} onClick={() => setSendTo(cutLimit)}>
                   <Send className="size-4" /> ส่งให้หัวหน้างานอนุมัติ
                 </Button>
               </>
@@ -383,6 +400,48 @@ export default function CostSheet() {
         <Field label="เหตุผล" hint="Purchase จะเห็นข้อความนี้">
           <Textarea rows={3} autoFocus value={reason?.text ?? ''} onChange={(e) => reason && setReason({ ...reason, text: e.target.value })} />
         </Field>
+      </Modal>
+
+      <Modal
+        open={Boolean(sendTo)}
+        onClose={() => setSendTo(null)}
+        title="ส่งให้หัวหน้างานอนุมัติ"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setSendTo(null)}>
+              ยกเลิก
+            </Button>
+            <Button
+              loading={busy}
+              disabled={!sendTo || sendTo < cs.period_from || sendTo > cutLimit}
+              onClick={async () => {
+                await call('submit_cost_sheet', { p_id: id, p_cut_to: sendTo === cs.period_to ? null : sendTo }, 'ส่งให้หัวหน้างานอนุมัติแล้ว')
+                setSendTo(null)
+              }}
+            >
+              <Send className="size-4" /> ยืนยันส่ง
+            </Button>
+          </>
+        }
+      >
+        {sendTo && (
+          <div className="space-y-4 text-sm">
+            <Field label="ส่งถึงวันที่" hint={`ส่งได้ถึง ${fmtDate(cutLimit)} (วันก่อนหน้าที่ยังรออนุมัติ หรือเมื่อวาน ถ้าจ็อบยังไม่จบ)`}>
+              <Input type="date" value={sendTo} min={cs.period_from} max={cutLimit} onChange={(e) => setSendTo(e.target.value)} />
+            </Field>
+            <div className="rounded-xl bg-slate-50 p-3 text-slate-600">
+              <p>
+                ส่ง <b>{fmtDate(cs.period_from)} – {fmtDate(sendTo)}</b> ({approvedDates.filter((d) => d <= sendTo).length} วันที่มีการทำงาน)
+              </p>
+              {sendTo < cs.period_to && (
+                <p className="mt-1">
+                  วันที่ {fmtDate(addDays(sendTo, 1))} – {fmtDate(cs.period_to)} จะย้ายไป<b>ใบร่างใหม่</b>ของจ็อบนี้อัตโนมัติ
+                </p>
+              )}
+              <p className="mt-1 text-xs text-slate-500">ยอดเงินจะคิดใหม่เฉพาะช่วงที่ส่ง และถูกล็อกเมื่อส่งแล้ว</p>
+            </div>
+          </div>
+        )}
       </Modal>
 
       <Modal
