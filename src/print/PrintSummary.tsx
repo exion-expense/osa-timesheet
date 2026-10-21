@@ -1,8 +1,8 @@
 import { useParams } from 'react-router'
 import { ErrorBox, Spinner } from '../components/ui'
-import { fmtMoney, fmtNum } from '../lib/format'
+import { fmtDocDate, fmtMoney, fmtNum } from '../lib/format'
 import { useLoad } from '../lib/hooks'
-import { DraftMark, loadCost, Paper, PrintShell } from './common'
+import { DraftMark, loadCost, Paper, PrintShell, SignBox } from './common'
 
 export default function PrintSummary() {
   const { id = '' } = useParams()
@@ -29,7 +29,7 @@ function periodText(from: string, to: string) {
 
 /** สรุปค่าแรง — รูปแบบเดียวกับเอกสารตัวอย่างของบริษัท (หน้าสั้น ไม่มีช่องเซ็น) */
 export function SummaryDoc({ data }: { data: Awaited<ReturnType<typeof loadCost>> }) {
-  const { cs, snap } = data
+  const { cs, snap, supervisors, purchaser, planners } = data
   return (
     <Paper className="mx-auto">
       <DraftMark show={cs.status !== 'approved'} />
@@ -63,7 +63,32 @@ export function SummaryDoc({ data }: { data: Awaited<ReturnType<typeof loadCost>
           </div>
         </div>
 
-        <p className="mt-16 text-[9px] text-slate-500">
+        <div className="mt-16 flex gap-3 [&>*]:flex-1" style={{ breakInside: 'avoid' }}>
+
+                <SignBox
+                  label="ผู้จัดทำ / Prepared by (Purchase)"
+                  name={purchaser?.name}
+                  signature={purchaser?.sig}
+                  date={purchaser?.at ? fmtDocDate(purchaser.at) : ''}
+                  note={purchaser?.at ? 'ส่งในระบบ' : undefined}
+                />
+                <SignBox
+                  label="ผู้ตรวจสอบ / Checked by (หัวหน้างาน)"
+                  name={supervisors.map((s) => s.name).join(', ')}
+                  signatures={supervisors.map((s) => s.sig)}
+                  date={supervisors.length && supervisors.every((s) => s.at) ? fmtDocDate(supervisors.map((s) => s.at!).sort().at(-1)!) : ''}
+                  note={supervisors.length && supervisors.every((s) => s.at) ? 'อนุมัติในระบบ' : supervisors.some((s) => s.at) ? 'อนุมัติบางส่วน' : undefined}
+                />
+                <SignBox
+                  label="ผู้ตรวจสอบเวลา / Verified by (Planner)"
+                  name={planners.map((p) => p.name).join(', ')}
+                  signatures={planners.map((p) => p.sig)}
+                  date={planners.length ? fmtDocDate(planners.map((p) => p.at).sort().at(-1)!) : ''}
+                  note={planners.length ? 'อนุมัติในระบบ' : undefined}
+                />
+        </div>
+
+        <p className="mt-8 text-[9px] text-slate-500">
           เอกสารสร้างจากระบบ OSA Timesheet · เลขอ้างอิง {cs.id.slice(0, 8).toUpperCase()} · {snap.workers.length} คน · แนบ Time Sheet ประกอบ
         </p>
       </div>
