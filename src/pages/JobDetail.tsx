@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarDays, ChevronRight, FileSpreadsheet, Pencil, Plus, UserRound, Users } from 'lucide-react'
+import { ArrowLeft, CalendarDays, ChevronRight, FileSpreadsheet, Pencil, Plus, Trash2, UserRound, Users } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { TermsStatus } from '../components/TermsStatus'
@@ -26,6 +26,7 @@ export default function JobDetail() {
   const [tab, setTab] = useState<'teams' | 'days' | 'cost' | 'terms'>('teams')
   const [newCost, setNewCost] = useState<{ from: string; to: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [delText, setDelText] = useState<string | null>(null)
 
   const { data, error, loading, reload } = useLoad(async () => {
     const today = todayYmd()
@@ -57,6 +58,15 @@ export default function JobDetail() {
     if (error) return toast.err(error)
     toast.ok(job.status === 'active' ? 'ปิดจ็อบแล้ว' : 'เปิดจ็อบแล้ว')
     reload()
+  }
+
+  async function deleteJob() {
+    setBusy(true)
+    const { error } = await supabase.rpc('delete_job', { p_job: id, p_confirm: delText })
+    setBusy(false)
+    if (error) return toast.err(error)
+    toast.ok(`ลบจ็อบ ${job.job_no} แล้ว`)
+    nav('/jobs', { replace: true })
   }
 
   async function saveTerms(patch: Partial<Job>) {
@@ -108,6 +118,9 @@ export default function JobDetail() {
         right={
           is('admin') && (
             <>
+              <Button variant="ghost" className="text-rose-600 hover:bg-rose-50" onClick={() => setDelText('')}>
+                <Trash2 className="size-4" /> ลบจ็อบ
+              </Button>
               <Button variant="secondary" onClick={toggleStatus} loading={busy}>
                 {job.status === 'active' ? 'ปิดจ็อบ' : 'เปิดจ็อบอีกครั้ง'}
               </Button>
@@ -309,6 +322,35 @@ export default function JobDetail() {
           </div>
         </Card>
       )}
+
+      <Modal
+        open={delText !== null}
+        onClose={() => setDelText(null)}
+        title={`ลบจ็อบ ${job.job_no}`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDelText(null)}>
+              ยกเลิก
+            </Button>
+            <Button variant="danger" loading={busy} disabled={delText?.trim() !== job.job_no} onClick={deleteJob}>
+              <Trash2 className="size-4" /> ลบถาวร
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4 text-sm">
+          <div className="rounded-xl bg-rose-50 p-3 text-rose-800">
+            <p className="font-medium">ลบแล้วกู้คืนไม่ได้</p>
+            <p className="mt-1">จะลบทีม รายชื่อลูกทีม เวลาเข้า-ออก ใบลงเวลารายวัน Allowance และใบคิดราคาที่ยังเป็นร่างของจ็อบนี้ทั้งหมด</p>
+          </div>
+          <p className="text-slate-600">
+            ถ้าจ็อบนี้มีใบคิดราคาที่ส่งหรืออนุมัติแล้ว ระบบจะไม่ให้ลบ (เป็นเอกสารการเงิน) ให้ใช้ <b>ปิดจ็อบ</b> แทน
+          </p>
+          <Field label={`พิมพ์เลขจ็อบ "${job.job_no}" เพื่อยืนยัน`}>
+            <Input autoFocus value={delText ?? ''} onChange={(e) => setDelText(e.target.value)} placeholder={job.job_no} />
+          </Field>
+        </div>
+      </Modal>
 
       <Modal
         open={Boolean(newCost)}

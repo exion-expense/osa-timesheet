@@ -292,4 +292,28 @@ update public.profiles set full_name = 'แอบแก้' where id = '00000000
 select pg_temp.ok((select full_name <> 'แอบแก้' from public.profiles where id = '00000000-0000-0000-0000-000000000002'), 'แก้โปรไฟล์คนอื่นไม่ได้');
 select pg_temp.ok(pg_temp.raises($q$update public.profiles set signature_png = 'javascript:alert(1)' where id = auth.uid()$q$), 'ลายเซ็นต้องเป็นรูป PNG เท่านั้น');
 
+-- ---------- 12. ลบจ็อบ ----------
+reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.ok(pg_temp.raises($q$select public.delete_job('10000000-0000-0000-0000-000000000001', 'VT260020')$q$), 'ลบจ็อบที่มีใบคิดราคาอนุมัติแล้วไม่ได้');
+select pg_temp.ok(pg_temp.raises($q$delete from public.jobs where id = '10000000-0000-0000-0000-000000000001'$q$)
+                  or exists (select 1 from public.jobs where id = '10000000-0000-0000-0000-000000000001'), 'ลบตรงผ่าน API ไม่ได้ ต้องผ่าน delete_job');
+select public.create_job(format('{"job_no":"DEL1","title":"ทดสอบลบ","start_date":"%s","end_date":"%s","teams":[{"name":"A","supervisor_id":"00000000-0000-0000-0000-000000000001","members":[{"full_name":"คนทดสอบ ลบ"}]}]}',
+  public.bkk_today() - 3, public.bkk_today() + 3)::jsonb) as deljob \gset
+select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+insert into public.attendance (worker_id, team_id, check_in, check_out)
+select w.id, w.team_id, (public.bkk_today() - 2 + time '08:00') at time zone 'Asia/Bangkok', (public.bkk_today() - 2 + time '17:00') at time zone 'Asia/Bangkok'
+from public.workers w where w.job_id = :'deljob';
+select public.approve_day(d.id) from public.day_sheets d where d.job_id = :'deljob';
+select pg_temp.ok(pg_temp.raises(format('select public.delete_job(%L, %L)', :'deljob', 'DEL1')), 'หัวหน้างานลบจ็อบไม่ได้');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
+select public.approve_day(d.id) from public.day_sheets d where d.job_id = :'deljob';
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.ok(pg_temp.raises(format('select public.delete_job(%L, %L)', :'deljob', 'ผิด')), 'พิมพ์เลขจ็อบไม่ตรง ลบไม่ได้');
+select public.delete_job(:'deljob', 'DEL1');
+reset role;
+select pg_temp.ok((select count(*) from public.jobs where id = :'deljob') = 0
+                  and (select count(*) from public.workers where job_id = :'deljob') = 0
+                  and (select count(*) from public.attendance where job_id = :'deljob') = 0
+                  and (select count(*) from public.cost_sheets where job_id = :'deljob') = 0, 'ลบจ็อบพร้อมข้อมูลทั้งหมด (รวมวันที่อนุมัติแล้ว)');
+
 \echo ALL TESTS PASSED
