@@ -135,6 +135,46 @@ export default function DaySheet() {
   )
   const allowTotal = allowances.filter((a) => rows.some((r) => r.worker_id === a.worker_id)).reduce((s, a) => s + Number(a.amount), 0)
 
+  const allowView = (r: AttendanceHours) => (
+    <div className="flex flex-wrap gap-1">
+      {allowFor(r.worker_id).map((a) =>
+        canAllow ? (
+          <label key={a.id} className="inline-flex items-center gap-1 rounded-lg bg-violet-50 px-2 py-0.5 text-xs text-violet-700">
+            {a.kind}
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              defaultValue={a.amount}
+              aria-label={`${a.kind} ${names.get(a.worker_id) ?? ''}`}
+              onBlur={(e) => e.target.value !== String(a.amount) && updateAllowance(a, e.target.value)}
+              className="w-16 rounded border border-violet-200 bg-white px-1 text-right"
+            />
+          </label>
+        ) : (
+          <Badge key={a.id} tone="violet">
+            {a.kind} {fmtMoney(a.amount)}
+          </Badge>
+        ),
+      )}
+    </div>
+  )
+  const rowActions = (r: AttendanceHours) =>
+    canEditTimes && (
+      <div className="flex justify-end gap-1">
+        <button
+          onClick={() => setEditAtt({ id: r.id, worker_id: r.worker_id, in: fmtTime(r.check_in), out: r.check_out ? fmtTime(r.check_out) : '', note: '' })}
+          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+          title="แก้เวลา"
+        >
+          <Pencil className="size-4" />
+        </button>
+        <button onClick={() => delAtt(r)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" title="ลบ">
+          <Trash2 className="size-4" />
+        </button>
+      </div>
+    )
+
   return (
     <>
       <PageHeader
@@ -241,7 +281,36 @@ export default function DaySheet() {
             </>
           }
         />
-        <div className="overflow-x-auto">
+        {/* มือถือ: แสดงเป็นการ์ด เห็นปุ่มแก้ไขครบโดยไม่ต้องเลื่อนตาราง */}
+        <ul className="divide-y divide-slate-100 md:hidden">
+          {sorted.map((r) => (
+            <li key={r.id} className="space-y-2 px-4 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-900">{names.get(r.worker_id) ?? '…'}</p>
+                  <p className="tabular text-sm text-slate-600">
+                    {fmtTime(r.check_in)} → {r.check_out ? fmtOut(r.check_in, r.check_out) : <span className="text-amber-700">ยังไม่ออก</span>}
+                  </p>
+                  {r.source === 'supervisor' && <p className="text-xs text-amber-700">แก้โดยหัวหน้า{r.note ? `: ${r.note}` : ''}</p>}
+                </div>
+                <div className="flex shrink-0 items-center gap-1">{rowActions(r)}</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Badge>{holiday ? '×2' : 'ปกติ'} {fmtHours(r.normal_h) || '0'} ชม.</Badge>
+                {Number(r.ot_h) > 0 && <Badge tone="blue">{holiday ? 'OT ×3' : 'OT ×1.5'} {fmtHours(r.ot_h)} ชม.</Badge>}
+                {allowView(r)}
+              </div>
+            </li>
+          ))}
+          <li className="flex justify-between bg-slate-50 px-4 py-2.5 text-sm font-semibold">
+            <span>รวม</span>
+            <span className="tabular">
+              ปกติ {fmtHours(totals.n) || '0'} · OT {fmtHours(totals.ot) || '0'}
+              {allowTotal > 0 && ` · ${fmtMoney(allowTotal)} ฿`}
+            </span>
+          </li>
+        </ul>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-xs font-medium text-slate-500">
               <tr>
@@ -270,44 +339,10 @@ export default function DaySheet() {
                   <td className="tabular px-3 py-3 text-center font-medium">{fmtHours(r.normal_h)}</td>
                   <td className="tabular px-3 py-3 text-center font-medium text-brand-700">{fmtHours(r.ot_h)}</td>
                   <td className="px-3 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {allowFor(r.worker_id).map((a) =>
-                        canAllow ? (
-                          <label key={a.id} className="inline-flex items-center gap-1 rounded-lg bg-violet-50 px-2 py-0.5 text-xs text-violet-700">
-                            {a.kind}
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              defaultValue={a.amount}
-                              aria-label={`${a.kind} ${names.get(a.worker_id) ?? ''}`}
-                              onBlur={(e) => e.target.value !== String(a.amount) && updateAllowance(a, e.target.value)}
-                              className="w-16 rounded border border-violet-200 bg-white px-1 text-right"
-                            />
-                          </label>
-                        ) : (
-                          <Badge key={a.id} tone="violet">
-                            {a.kind} {fmtMoney(a.amount)}
-                          </Badge>
-                        ),
-                      )}
-                    </div>
+                    {allowView(r)}
                   </td>
                   <td className="px-5 py-3">
-                    {canEditTimes && (
-                      <div className="flex justify-end gap-1">
-                        <button
-                          onClick={() => setEditAtt({ id: r.id, worker_id: r.worker_id, in: fmtTime(r.check_in), out: r.check_out ? fmtTime(r.check_out) : '', note: '' })}
-                          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-                          title="แก้เวลา"
-                        >
-                          <Pencil className="size-4" />
-                        </button>
-                        <button onClick={() => delAtt(r)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" title="ลบ">
-                          <Trash2 className="size-4" />
-                        </button>
-                      </div>
-                    )}
+                    {rowActions(r)}
                   </td>
                 </tr>
               ))}

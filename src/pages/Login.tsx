@@ -4,17 +4,18 @@ import { Link, Navigate, useLocation } from 'react-router'
 import { Logo } from '../components/Layout'
 import { Button, Field, Input } from '../components/ui'
 import { useAuth } from '../lib/auth'
+import { roleHome } from '../lib/nav'
 import { errMsg, supabase } from '../lib/supabase'
 
 export default function Login() {
-  const { session, loading, mfaRequired } = useAuth()
+  const { session, loading, mfaRequired, profile } = useAuth()
   const loc = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (!loading && session) return <Navigate to={mfaRequired ? '/mfa' : (loc.state as { from?: string })?.from || '/'} replace />
+  if (!loading && session) return <Navigate to={mfaRequired ? '/mfa' : (loc.state as { from?: string })?.from || roleHome(profile?.role)} replace />
 
   async function submit(e: FormEvent) {
     e.preventDefault()

@@ -1,4 +1,4 @@
-import { CalendarClock, CheckCircle2, Circle, CircleDot, ClipboardCheck, Copy, Download, Eye, EyeOff, Link2, Lock, Play, Printer, RefreshCw, Share2, Users } from 'lucide-react'
+import { CalendarClock, CheckCircle2, Circle, CircleDot, ClipboardCheck, Copy, Download, Eye, EyeOff, Link2, Lock, Play, Printer, QrCode, RefreshCw, Share2, Users } from 'lucide-react'
 import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
@@ -224,6 +224,12 @@ function Workspace({ team, sheet, onChanged }: { team: TeamRow; sheet?: Sheet; o
               {stage === 'complete' && 'ทุกคนที่มาวันนี้ลงเวลาออกครบแล้ว — ตรวจและอนุมัติได้เลย'}
               {stage === 'approved' && 'หัวหน้างานอนุมัติแล้ว — รอ Planner'}
             </span>
+            <div className="flex flex-wrap gap-2">
+            {stage === 'open' && (
+              <Button size="sm" variant="secondary" onClick={() => document.getElementById('qr-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+                <QrCode className="size-4" /> ส่ง QR
+              </Button>
+            )}
             {sheet && (
               <Link to={`/days/${sheet.id}`}>
                 <Button size="sm" variant={stage === 'complete' ? 'success' : 'secondary'}>
@@ -231,6 +237,7 @@ function Workspace({ team, sheet, onChanged }: { team: TeamRow; sheet?: Sheet; o
                 </Button>
               </Link>
             )}
+            </div>
           </div>
         )}
       </Card>
@@ -378,6 +385,7 @@ function QrCard({ team }: { team: TeamRow }) {
   }
 
   return (
+    <div id="qr-card" className="scroll-mt-20">
     <Card className="h-fit">
       <CardHeader title="QR สำหรับลงเวลา" sub="ส่งให้ผู้รับเหมา หรือพิมพ์ติดหน้างาน" />
       <div className="p-5">
@@ -403,5 +411,6 @@ function QrCard({ team }: { team: TeamRow }) {
         </button>
       </div>
     </Card>
+    </div>
   )
 }

@@ -4,11 +4,12 @@ import { Navigate, useNavigate } from 'react-router'
 import { Logo } from '../components/Layout'
 import { Button, Field, Input, Spinner } from '../components/ui'
 import { useAuth } from '../lib/auth'
+import { roleHome } from '../lib/nav'
 import { errMsg, supabase } from '../lib/supabase'
 
 /** ยืนยันตัวตน 2 ชั้นด้วยแอป Authenticator (Google Authenticator / Microsoft Authenticator) */
 export default function Mfa() {
-  const { session, loading, mfaRequired, refresh, signOut } = useAuth()
+  const { session, loading, mfaRequired, refresh, signOut, profile } = useAuth()
   const nav = useNavigate()
   const [factorId, setFactorId] = useState<string | null>(null)
   const [enroll, setEnroll] = useState<{ qr: string; secret: string } | null>(null)
@@ -39,7 +40,7 @@ export default function Mfa() {
 
   if (loading) return <Spinner />
   if (!session) return <Navigate to="/login" replace />
-  if (!mfaRequired) return <Navigate to="/" replace />
+  if (!mfaRequired) return <Navigate to={roleHome(profile?.role)} replace />
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -50,7 +51,7 @@ export default function Mfa() {
     setBusy(false)
     if (error) return setError('รหัสไม่ถูกต้องหรือหมดเวลา ลองใหม่อีกครั้ง')
     await refresh()
-    nav('/', { replace: true })
+    nav(roleHome(profile?.role), { replace: true })
   }
 
   return (

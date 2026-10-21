@@ -49,7 +49,7 @@ export default function Dashboard() {
         sub={`${profile?.role ? ROLE_LABEL[profile.role] : ''} · ${fmtDateLong(d.today)}`}
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Stat label="อยู่หน้างานตอนนี้" value={fmtNum(d.on_site)} sub={`มาวันนี้ ${d.checked_in_today} คน`} icon={<HardHat className="size-5" />} tone="green" />
         <Link to={is('purchase') ? '/costs' : '/inbox'}>
           <Stat label="งานรอฉัน" value={fmtNum(myPending)} sub="กดเพื่อดูรายการ" icon={<ClipboardCheck className="size-5" />} tone={myPending ? 'amber' : 'gray'} />

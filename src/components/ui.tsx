@@ -207,7 +207,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={{ ok, err }}>
       {children}
-      <div className="no-print pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4">
+      <div className="no-print pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-4">
         {items.map((t) => (
           <div
             key={t.id}
@@ -239,14 +239,14 @@ export function Stat({ label, value, sub, icon, tone = 'blue' }: { label: string
     violet: 'bg-violet-50 text-violet-600',
   }
   return (
-    <Card className="p-5">
+    <Card className="h-full p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm text-slate-500">{label}</p>
-          <p className="tabular mt-1 text-2xl font-semibold text-slate-900">{value}</p>
+          <p className="text-xs text-slate-500 sm:text-sm">{label}</p>
+          <p className="tabular mt-1 text-xl font-semibold text-slate-900 sm:text-2xl">{value}</p>
           {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
         </div>
-        {icon && <div className={cx('rounded-xl p-2.5', ring[tone])}>{icon}</div>}
+        {icon && <div className={cx('hidden rounded-xl p-2.5 sm:block', ring[tone])}>{icon}</div>}
       </div>
     </Card>
   )

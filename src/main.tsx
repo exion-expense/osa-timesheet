@@ -18,6 +18,7 @@ const Privacy = lazy(() => import('./pages/Privacy'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Today = lazy(() => import('./pages/Today'))
 const Me = lazy(() => import('./pages/Me'))
+const Status = lazy(() => import('./pages/Status'))
 const Inbox = lazy(() => import('./pages/Inbox'))
 const Jobs = lazy(() => import('./pages/Jobs'))
 const JobForm = lazy(() => import('./pages/JobForm'))
@@ -49,6 +50,7 @@ const router = createBrowserRouter([
           { index: true, element: <Dashboard /> },
           { path: 'today', element: <Today /> },
           { path: 'me', element: <Me /> },
+          { path: 'status', element: <Status /> },
           { path: 'inbox', element: <Inbox /> },
           { path: 'jobs', element: <Jobs /> },
           { path: 'jobs/new', element: <JobForm /> },
