@@ -103,8 +103,12 @@ select pg_temp.ok(pg_temp.raises($q$select public.generate_pins('20000000-0000-0
 select pg_temp.ok(pg_temp.raises($q$select public.cost_preview('10000000-0000-0000-0000-000000000001', '2026-01-01', '2026-12-31')$q$), 'anon ดูราคาไม่ได้');
 select pg_temp.ok(pg_temp.raises($q$select public.kiosk_check_pin('x', null, null)$q$), 'anon เรียก kiosk_check_pin ตรงไม่ได้');
 
-reset role; select qr_token as tok from public.teams where id = '20000000-0000-0000-0000-000000000001' \gset
+reset role;
+insert into public.kiosk_tokens (team_id, kind, expires_at) values ('20000000-0000-0000-0000-000000000001', 'in', now() + interval '1 hour') returning token as tok \gset
+insert into public.kiosk_tokens (team_id, kind, expires_at) values ('20000000-0000-0000-0000-000000000001', 'out', now() + interval '1 hour') returning token as tok_out \gset
+select qr_token as oldtok from public.teams where id = '20000000-0000-0000-0000-000000000001' \gset
 set role anon;
+select pg_temp.ok(public.kiosk_team(:'oldtok') ->> 'error' = 'QR ไม่ถูกต้อง', 'QR ประจำทีมแบบเดิมใช้ลงเวลาไม่ได้แล้ว');
 select pg_temp.ok((public.kiosk_team('bad') ->> 'ok')::boolean = false, 'QR ผิดถูกปฏิเสธ');
 select pg_temp.ok(public.kiosk_team(:'tok') ->> 'error' like 'หัวหน้างานยังไม่เปิด%', 'ยังไม่เปิดลงเวลา สแกน QR แล้วถูกปฏิเสธ');
 select pg_temp.ok(public.kiosk_status(:'tok', '30000000-0000-0000-0000-000000000001', '0000') ->> 'error' like 'หัวหน้างานยังไม่เปิด%', 'ยังไม่เปิด ใส่ PIN ไม่ได้');
@@ -142,11 +146,13 @@ select pin as pin1 from public.daily_pins where worker_id = '30000000-0000-0000-
 reset role; set role anon; select set_config('request.jwt.claims', '{"role":"anon"}', false);
 select pg_temp.ok((public.kiosk_clock(:'tok', '30000000-0000-0000-0000-000000000001', :'pin1', 'in') ->> 'ok')::boolean, 'เช็คอินสำเร็จหลังรีเซ็ต PIN');
 select pg_temp.ok((public.kiosk_clock(:'tok', '30000000-0000-0000-0000-000000000001', :'pin1', 'in') ->> 'ok')::boolean = false, 'เช็คอินซ้ำไม่ได้');
-select pg_temp.ok(public.kiosk_clock(:'tok', '30000000-0000-0000-0000-000000000001', :'pin1', 'out') ->> 'error' like 'เพิ่งลงเวลาเข้า%', 'เช็คเอาท์ทันทีไม่ได้');
+select pg_temp.ok(public.kiosk_clock(:'tok', '30000000-0000-0000-0000-000000000001', :'pin1', 'out') ->> 'error' like 'QR นี้ใช้ลงเวลาเข้างานเท่านั้น%', 'QR เข้างานใช้เช็คเอาท์ไม่ได้');
+select pg_temp.ok(public.kiosk_clock(:'tok_out', '30000000-0000-0000-0000-000000000001', :'pin1', 'out') ->> 'error' like 'เพิ่งลงเวลาเข้า%', 'เช็คเอาท์ทันทีไม่ได้');
+select pg_temp.ok(jsonb_array_length(public.kiosk_team(:'tok_out') -> 'workers') = 1, 'QR ออกงาน แสดงเฉพาะคนที่ยังไม่ออก');
 reset role;
 update public.attendance set check_in = check_in - interval '9 hours' where worker_id = '30000000-0000-0000-0000-000000000001';
 set role anon;
-select pg_temp.ok((public.kiosk_clock(:'tok', '30000000-0000-0000-0000-000000000001', :'pin1', 'out') ->> 'ok')::boolean, 'เช็คเอาท์สำเร็จ');
+select pg_temp.ok((public.kiosk_clock(:'tok_out', '30000000-0000-0000-0000-000000000001', :'pin1', 'out') ->> 'ok')::boolean, 'เช็คเอาท์สำเร็จ');
 reset role;
 select pg_temp.ok((select source from public.attendance where worker_id = '30000000-0000-0000-0000-000000000001') = 'self', 'บันทึกว่าลงเวลาเอง');
 select pg_temp.ok((select count(*) from public.day_sheets) = 1, 'สร้างใบรายวันอัตโนมัติ');
@@ -161,6 +167,9 @@ insert into public.attendance (worker_id, team_id, check_in, check_out) values
   ('30000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000001', (:'sun'::date - 1 + time '08:00') at time zone 'Asia/Bangkok', null);
 select pg_temp.ok((select source from public.attendance where work_date = :'sun'::date - 1 and worker_id = '30000000-0000-0000-0000-000000000001') = 'supervisor', 'บันทึกว่าหัวหน้าเป็นคนลง');
 select id as sheet_sat from public.day_sheets where work_date = :'sun'::date - 1 \gset
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
+select pg_temp.ok(pg_temp.raises(format($q$update public.attendance set note = 'planner' where work_date = %L$q$, :'sun'::date - 1)), 'Planner แก้เวลาก่อนหัวหน้างานอนุมัติไม่ได้');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
 select id as sheet_sun from public.day_sheets where work_date = :'sun'::date \gset
 select pg_temp.ok(pg_temp.raises(format('select public.approve_day(%L)', :'sheet_sat')), 'อนุมัติไม่ได้ถ้ามีคนยังไม่ออก');
 update public.attendance set check_out = (:'sun'::date - 1 + time '17:00') at time zone 'Asia/Bangkok' where worker_id = '30000000-0000-0000-0000-000000000002' and work_date = :'sun'::date - 1;
@@ -223,6 +232,15 @@ select pg_temp.ok(pg_temp.raises(format('select public.approve_day(%L)', :'sheet
 select pg_temp.ok(public.approve_cost_sheet('40000000-0000-0000-0000-000000000001') = 'approved', 'Manager คนเดียวอนุมัติราคาได้');
 select pg_temp.ok((select approver_name = 'ผู้จัดการ' from public.cost_sheet_approvals where cost_sheet_id = '40000000-0000-0000-0000-000000000001'), 'บันทึกชื่อ Manager ติดเอกสาร');
 select pg_temp.ok((select count(*) from public.audit_log) > 0, 'Manager อ่านประวัติการแก้ไขได้');
+select pg_temp.ok((public.job_budgets('10000000-0000-0000-0000-000000000001') -> 0 ->> 'spent')::numeric = 6778.13,
+  'Budget หักตามวันที่อนุมัติครบ = ยอดรวมก่อนหัก 3% (' || (public.job_budgets('10000000-0000-0000-0000-000000000001') -> 0 ->> 'spent') || ')');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+select public.set_job_budget('10000000-0000-0000-0000-000000000001', 50000);
+select pg_temp.ok((select budget = 50000 from public.jobs where id = '10000000-0000-0000-0000-000000000001'), 'หัวหน้างานตั้ง Budget จ็อบของตัวเองได้');
+select pg_temp.ok(pg_temp.raises($q$update public.jobs set title = 'แอบแก้' where id = '10000000-0000-0000-0000-000000000001'$q$)
+                  or (select title from public.jobs where id = '10000000-0000-0000-0000-000000000001') = 'PTT GSP6', 'ตั้ง Budget ไม่ได้เปิดให้แก้อย่างอื่น');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000002');
+select pg_temp.ok(pg_temp.raises($q$select public.set_job_budget('10000000-0000-0000-0000-000000000001', 1)$q$), 'ตั้ง Budget จ็อบที่มองไม่เห็นไม่ได้');
 select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
 select pg_temp.ok(pg_temp.raises(format('select public.unapprove_day(%L)', :'sheet_sat')), 'ยกเลิกอนุมัติวันที่ถูกคิดราคาแล้วไม่ได้');
 
@@ -293,7 +311,7 @@ set session_replication_role = origin;
 set role anon; select set_config('request.jwt.claims', '{"role":"anon"}', false);
 select pg_temp.ok((public.kiosk_status(:'tok', '30000000-0000-0000-0000-000000000009', '4321') ->> 'overnight')::boolean, 'หลังเที่ยงคืน ใช้ PIN เมื่อวานเข้าได้ (กะข้ามคืน)');
 select pg_temp.ok(public.kiosk_clock(:'tok', '30000000-0000-0000-0000-000000000009', '4321', 'in') ->> 'error' like 'ยังไม่ได้ลงเวลาออกของเมื่อวาน%', 'ยังไม่ออกของเมื่อวาน เช็คอินใหม่ไม่ได้');
-select pg_temp.ok((public.kiosk_clock(:'tok', '30000000-0000-0000-0000-000000000009', '4321', 'out') ->> 'ok')::boolean, 'สแกนออกหลังเที่ยงคืนได้');
+select pg_temp.ok((public.kiosk_clock(:'tok_out', '30000000-0000-0000-0000-000000000009', '4321', 'out') ->> 'ok')::boolean, 'สแกนออกหลังเที่ยงคืนได้');
 reset role;
 -- (ข้อมูลทดสอบสร้างเวลาเข้าเป็น "3 ชม.ก่อน" จึงเช็กแค่ว่าอัปเดตรายการเดิม ไม่ได้สร้างรายการใหม่)
 select pg_temp.ok((select count(*) = 1 and bool_and(check_out is not null) from public.attendance where worker_id = '30000000-0000-0000-0000-000000000009'), 'เวลาออกบันทึกในรายการเดิม ไม่สร้างรายการใหม่');
@@ -357,6 +375,7 @@ select w.id, w.team_id, (public.bkk_today() - 2 + time '08:00') at time zone 'As
 from public.workers w where w.job_id = :'sigjob';
 select id as sigsheet from public.day_sheets where job_id = :'sigjob' \gset
 select public.approve_day(:'sigsheet');
+select pg_temp.ok(pg_temp.raises(format($q$update public.attendance set check_out = check_out - interval '1 hour' where job_id = %L$q$, :'sigjob')), 'หัวหน้างานแก้เวลาหลังอนุมัติแล้วไม่ได้');
 update public.profiles set full_name = 'เปลี่ยนชื่อทีหลัง' where id = auth.uid();
 select public.set_my_signature('data:image/png;base64,iVBORw0KGgoA') as sig2 \gset
 select pg_temp.ok((select supervisor_sig_id = :'sig1' and supervisor_name = 'สมชาย หัวหน้า' from public.day_sheets where id = :'sigsheet'),
@@ -365,8 +384,13 @@ select pg_temp.ok((select count(*) from public.signatures where id in (:'sig1', 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
 select pg_temp.ok((select count(*) from public.signatures where id = :'sig1') = 1, 'Planner เห็นลายเซ็นในเอกสารที่ตัวเองดูได้');
 select pg_temp.ok((select count(*) from public.signatures where id = :'sig2') = 0, 'Planner ไม่เห็นลายเซ็นปัจจุบันที่ยังไม่ได้ใช้ในเอกสาร');
+update public.attendance set check_out = check_out - interval '1 hour', note = 'Planner ตรวจแล้วแก้' where job_id = :'sigjob';
+select pg_temp.ok((select edit_count = 2 and source = 'supervisor' from public.attendance where job_id = :'sigjob'), 'Planner แก้เวลาได้หลังหัวหน้าอนุมัติ และนับเป็นแก้ไขครั้งที่ 2');
 select public.approve_day(:'sigsheet');
 select pg_temp.ok((select planner_name = 'แพลนเนอร์' and planner_sig_id is null from public.day_sheets where id = :'sigsheet'), 'Planner ที่ไม่มีลายเซ็น บันทึกแค่ชื่อ');
+select pg_temp.ok(pg_temp.raises(format($q$update public.attendance set note = 'x' where job_id = %L$q$, :'sigjob')), 'Planner อนุมัติแล้ว แก้ไม่ได้');
+select public.set_my_signature('data:image/png;base64,iVBORw0KGgo=') as plsig \gset
+select pg_temp.ok((select planner_sig_id = :'plsig' from public.day_sheets where id = :'sigsheet'), 'อัปโหลดลายเซ็นทีหลัง เติมลงเอกสารที่อนุมัติไปแล้ว');
 
 -- วันที่เปิดลงเวลาแต่ไม่มีใครมา (ใบว่าง) ไม่ขวางการส่งใบคิดราคา
 reset role;
@@ -404,15 +428,42 @@ select pg_temp.ok((public.kiosk_status(:'tok', '30000000-0000-0000-0000-00000000
 select pg_temp.ok(pg_temp.raises('select * from public.kiosk_failures'), 'anon อ่านบันทึกการกรอกผิดไม่ได้');
 select pg_temp.ok(pg_temp.raises('select * from public.signatures'), 'anon อ่านลายเซ็นไม่ได้');
 
--- ออก QR ใหม่ → QR เดิมใช้ไม่ได้
-reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
-select public.rotate_team_qr('20000000-0000-0000-0000-000000000001');
-reset role; set role anon;
-select pg_temp.ok(public.kiosk_team(:'tok') ->> 'error' = 'QR ไม่ถูกต้อง', 'ออก QR ใหม่แล้ว QR เดิมใช้ไม่ได้');
-
 -- บัญชีใหม่ไม่รับชื่อที่ส่งมาเอง
 reset role;
 insert into auth.users (id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000ee', 'fake@test.local', '{"full_name":"สมชาย หัวหน้า"}');
 select pg_temp.ok((select full_name = '' and role is null from public.profiles where id = '00000000-0000-0000-0000-0000000000ee'), 'สมัครเองตั้งชื่อเลียนแบบพนักงานไม่ได้');
+
+-- QR มีอายุ 1 ชั่วโมง และออกได้เฉพาะหัวหน้าของทีม
+reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+select pg_temp.ok((public.issue_kiosk_qr('20000000-0000-0000-0000-000000000001', 'in') ->> 'expires_at')::timestamptz between now() + interval '59 minutes' and now() + interval '61 minutes', 'หัวหน้าออก QR เข้างาน อายุ 1 ชั่วโมง');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000002');
+select pg_temp.ok(pg_temp.raises($q$select public.issue_kiosk_qr('20000000-0000-0000-0000-000000000001', 'in')$q$), 'หัวหน้าทีมอื่นออก QR ให้ทีม A ไม่ได้');
+reset role; set role anon;
+select pg_temp.ok(pg_temp.raises($q$select public.issue_kiosk_qr('20000000-0000-0000-0000-000000000001', 'in')$q$), 'anon ออก QR ไม่ได้');
+select pg_temp.ok(pg_temp.raises('select * from public.kiosk_tokens'), 'anon อ่านรายการ QR ไม่ได้');
+reset role; update public.kiosk_tokens set expires_at = now() - interval '1 minute' where token = :'tok';
+set role anon;
+select pg_temp.ok(public.kiosk_team(:'tok') ->> 'error' like 'QR นี้หมดอายุแล้ว%', 'QR เกิน 1 ชั่วโมง ใช้ไม่ได้');
+select pg_temp.ok((public.kiosk_status(:'tok', '30000000-0000-0000-0000-000000000002', :'pin2') ->> 'ok')::boolean = false, 'QR หมดอายุ ใส่ PIN ไม่ได้');
+
+-- Manager ใหญ่สุด: สร้างจ็อบ ลงเวลา อนุมัติแทนหัวหน้าและ Planner
+reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-0000000000d1');
+select public.create_job(format('{"job_no":"MGR1","title":"ทดสอบ Manager","start_date":"%s","end_date":"%s","teams":[{"name":"A","supervisor_id":"00000000-0000-0000-0000-000000000001","members":[{"full_name":"คนทดสอบ ผู้จัดการ"}]}]}',
+  public.bkk_today() - 3, public.bkk_today() + 3)::jsonb) as mgrjob \gset
+insert into public.attendance (worker_id, team_id, check_in, check_out)
+select w.id, w.team_id, (public.bkk_today() - 2 + time '08:00') at time zone 'Asia/Bangkok', (public.bkk_today() - 2 + time '17:00') at time zone 'Asia/Bangkok'
+from public.workers w where w.job_id = :'mgrjob';
+select id as mgrsheet from public.day_sheets where job_id = :'mgrjob' \gset
+select public.approve_day(:'mgrsheet');
+select public.approve_day(:'mgrsheet');
+select pg_temp.ok((select supervisor_approved_by = '00000000-0000-0000-0000-0000000000d1' and planner_approved_by = '00000000-0000-0000-0000-0000000000d1'
+                   from public.day_sheets where id = :'mgrsheet'), 'Manager อนุมัติแทนหัวหน้างานและ Planner ได้');
+select pg_temp.ok(pg_temp.raises(format('select public.approve_day(%L)', :'mgrsheet')), 'อนุมัติซ้ำใบที่ครบแล้วไม่ได้');
+update public.profiles set role = 'planner' where id = '00000000-0000-0000-0000-0000000000ee';
+select pg_temp.ok((select role = 'planner' from public.profiles where id = '00000000-0000-0000-0000-0000000000ee'), 'Manager กำหนดตำแหน่งผู้ใช้ได้');
+select pg_temp.ok(pg_temp.raises($q$update public.profiles set role = 'admin' where id = auth.uid()$q$)
+                  or (select role = 'manager' from public.profiles where id = auth.uid()), 'Manager เปลี่ยนตำแหน่งตัวเองไม่ได้');
+reset role;
+
 
 \echo ALL TESTS PASSED

@@ -9,6 +9,8 @@ import { errMsg, supabase } from '../lib/supabase'
 interface TeamInfo {
   ok: boolean
   error?: string
+  kind: 'in' | 'out'
+  expires_at: string
   job_no: string
   job_title: string
   team: string
@@ -32,7 +34,7 @@ type Step = 'pick' | 'pin' | 'action' | 'done'
 
 export default function Kiosk() {
   const { token = '' } = useParams()
-  const storeKey = `osa-kiosk-${token.slice(0, 8)}`
+  const [storeKey, setStoreKey] = useState('osa-kiosk')
   const [team, setTeam] = useState<TeamInfo | null>(null)
   const [loadErr, setLoadErr] = useState<string | null>(null)
   const [step, setStep] = useState<Step>('pick')
@@ -52,15 +54,17 @@ export default function Kiosk() {
       const t = data as TeamInfo
       if (!t.ok) return setLoadErr(t.error ?? 'ใช้งานไม่ได้')
       setTeam(t)
+      const key = `osa-kiosk-${t.job_no}-${t.team}`
+      setStoreKey(key)
       try {
-        const last = localStorage.getItem(storeKey)
+        const last = localStorage.getItem(key)
         const w = t.workers.find((x) => x.id === last)
         if (w) setWorker(w)
       } catch {
         /* ignore */
       }
     })
-  }, [token, storeKey])
+  }, [token])
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
@@ -161,6 +165,9 @@ export default function Kiosk() {
           {team.job_no} · {team.job_title}
         </p>
         <p className="mt-0.5 text-xl font-semibold">{team.team}</p>
+        <p className={cx('mt-2 inline-block rounded-full px-3 py-1 text-sm font-semibold', team.kind === 'in' ? 'bg-emerald-500' : 'bg-orange-500')}>
+          {team.kind === 'in' ? 'ลงเวลาเข้างาน' : 'ลงเวลาออกงาน'}
+        </p>
         <div className="mt-3 flex items-end justify-between">
           <p className="text-sm text-brand-100">{fmtDateLong(team.today)}</p>
           <p className="tabular text-3xl font-semibold">{fmtTime(clockNow)}</p>
@@ -249,12 +256,16 @@ export default function Kiosk() {
             </div>
           </div>
           {msg && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-center text-sm text-rose-700">{msg}</p>}
-          {!status.check_in && (
+          {team.kind === 'in' && status.check_in && !status.check_out && (
+            <p className="rounded-xl bg-amber-50 p-4 text-center text-amber-800">เข้างานแล้ว — ตอนเลิกงานให้สแกน QR ออกงานจากหัวหน้างาน</p>
+          )}
+          {team.kind === 'out' && !status.check_in && <p className="rounded-xl bg-amber-50 p-4 text-center text-amber-800">ยังไม่ได้ลงเวลาเข้างาน — แจ้งหัวหน้างาน</p>}
+          {team.kind === 'in' && !status.check_in && (
             <button onClick={() => clock('in')} disabled={busy} className="flex w-full items-center justify-center gap-3 rounded-2xl bg-emerald-600 py-6 text-2xl font-semibold text-white shadow active:bg-emerald-700 disabled:opacity-60">
               <LogIn className="size-7" /> เช็คอิน เข้างาน
             </button>
           )}
-          {status.check_in && !status.check_out && (
+          {team.kind === 'out' && status.check_in && !status.check_out && (
             <button onClick={() => clock('out')} disabled={busy} className="flex w-full items-center justify-center gap-3 rounded-2xl bg-orange-500 py-6 text-2xl font-semibold text-white shadow active:bg-orange-600 disabled:opacity-60">
               <LogOut className="size-7" /> เช็คเอาท์ ออกงาน
             </button>

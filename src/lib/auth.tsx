@@ -108,7 +108,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [userId])
 
   const is = useCallback(
-    (...roles: Role[]) => Boolean(profile?.active && profile.role && roles.includes(profile.role)),
+    (...roles: Role[]) =>
+      Boolean(profile?.active && profile.role && (roles.includes(profile.role) || (profile.role === 'manager' && roles.includes('admin')))),
     [profile],
   )
 

@@ -26,6 +26,7 @@ const JobDetail = lazy(() => import('./pages/JobDetail'))
 const TeamPage = lazy(() => import('./pages/TeamPage'))
 const DaySheet = lazy(() => import('./pages/DaySheet'))
 const CostSheet = lazy(() => import('./pages/CostSheet'))
+const Log = lazy(() => import('./pages/Log'))
 const Costs = lazy(() => import('./pages/Costs'))
 const Users = lazy(() => import('./pages/admin/Users'))
 const Settings = lazy(() => import('./pages/admin/Settings'))
@@ -33,7 +34,6 @@ const Audit = lazy(() => import('./pages/admin/Audit'))
 const PrintDay = lazy(() => import('./print/PrintDay'))
 const PrintTimesheet = lazy(() => import('./print/PrintTimesheet'))
 const PrintSummary = lazy(() => import('./print/PrintSummary'))
-const PrintQr = lazy(() => import('./print/PrintQr'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 const router = createBrowserRouter([
@@ -60,6 +60,7 @@ const router = createBrowserRouter([
           { path: 'days/:id', element: <DaySheet /> },
           { path: 'costs', element: <Costs /> },
           { path: 'cost/:id', element: <CostSheet /> },
+          { path: 'log', element: <Log /> },
           { path: 'admin/users', element: <Users /> },
           { path: 'admin/settings', element: <Settings /> },
           { path: 'admin/audit', element: <Audit /> },
@@ -68,7 +69,6 @@ const router = createBrowserRouter([
       { path: 'print/day/:id', element: <PrintDay /> },
       { path: 'print/timesheet/:id', element: <PrintTimesheet /> },
       { path: 'print/summary/:id', element: <PrintSummary /> },
-      { path: 'print/qr/:id', element: <PrintQr /> },
     ],
   },
   { path: '*', element: <NotFound /> },

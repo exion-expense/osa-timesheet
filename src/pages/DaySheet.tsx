@@ -53,9 +53,11 @@ export default function DaySheet() {
 
   const isSup = is('supervisor') && sheet.supervisor_id === profile?.id
   const isPlanner = is('planner')
-  const anyApproval = Boolean(sheet.supervisor_approved_at || sheet.planner_approved_at)
-  const canEditTimes = (isSup || is('admin')) && !anyApproval
+  const isMgr = is('manager')
+  // ก่อนหัวหน้าอนุมัติ: หัวหน้าทีม/แอดมินแก้ได้ · หัวหน้าอนุมัติแล้ว: Planner/แอดมินแก้ได้ · Planner อนุมัติแล้ว: ล็อก
+  const canEditTimes = !sheet.planner_approved_at && (sheet.supervisor_approved_at ? isPlanner || is('admin') : isSup || is('admin'))
   const canAllow = (isPlanner || is('admin')) && !sheet.planner_approved_at
+  const noSig = !profile?.signature_id
   const sorted = [...rows].sort((a, b) => (names.get(a.worker_id) ?? '').localeCompare(names.get(b.worker_id) ?? '', 'th'))
   const holiday = rows[0]?.holiday
   const allowFor = (w: string) => allowances.filter((a) => a.worker_id === w)
@@ -66,7 +68,7 @@ export default function DaySheet() {
     const { error } = await supabase.rpc(fn, args)
     setBusy(false)
     if (error) return toast.err(error)
-    toast.ok(ok)
+    toast.ok(fn === 'approve_day' && noSig ? `${ok} — คุณยังไม่มีลายเซ็น เอกสารจะขึ้นแค่ชื่อ (อัปโหลดได้ที่ บัญชีของฉัน)` : ok)
     reload()
   }
 
@@ -210,9 +212,9 @@ export default function DaySheet() {
             <DayBadge d={sheet} />
           </div>
           <div className="flex flex-wrap gap-2">
-            {isSup && !sheet.supervisor_approved_at && (
+            {(isSup || isMgr) && !sheet.supervisor_approved_at && (
               <Button variant="success" loading={busy} onClick={() => rpc('approve_day', { p_sheet: id }, 'อนุมัติแล้ว')}>
-                <Check className="size-4" /> อนุมัติใบนี้
+                <Check className="size-4" /> {isSup ? 'อนุมัติใบนี้' : 'อนุมัติแทนหัวหน้างาน'}
               </Button>
             )}
             {isSup && sheet.supervisor_approved_at && !sheet.planner_approved_at && (
@@ -220,13 +222,13 @@ export default function DaySheet() {
                 <Undo2 className="size-4" /> ยกเลิกอนุมัติเพื่อแก้ไข
               </Button>
             )}
-            {isPlanner && sheet.supervisor_approved_at && !sheet.planner_approved_at && (
+            {(isPlanner || isMgr) && sheet.supervisor_approved_at && !sheet.planner_approved_at && (
               <>
                 <Button variant="secondary" onClick={() => setReject('')}>
                   <X className="size-4" /> ตีกลับ
                 </Button>
                 <Button variant="success" loading={busy} onClick={() => rpc('approve_day', { p_sheet: id }, 'อนุมัติแล้ว ส่งต่อไปคิดราคา')}>
-                  <Check className="size-4" /> อนุมัติ
+                  <Check className="size-4" /> {isPlanner ? 'อนุมัติ' : 'อนุมัติแทน Planner'}
                 </Button>
               </>
             )}
@@ -237,11 +239,20 @@ export default function DaySheet() {
             )}
           </div>
         </div>
-        {!sheet.supervisor_approved_at && !isSup && (
+        {noSig && (isSup || isPlanner || isMgr) && !sheet.planner_approved_at && (
+          <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            คุณยังไม่มีลายเซ็น — อนุมัติได้ แต่เอกสารจะขึ้นแค่ชื่อ ·{' '}
+            <Link to="/me" className="font-medium underline">
+              อัปโหลดลายเซ็น
+            </Link>{' '}
+            (อัปโหลดทีหลัง ระบบจะเติมลงใบที่อนุมัติไปแล้วให้)
+          </p>
+        )}
+        {!sheet.supervisor_approved_at && !isSup && !isMgr && (
           <p className={`mt-4 rounded-xl px-4 py-3 text-sm ${sheet.supervisor_id ? 'bg-slate-50 text-slate-600' : 'bg-amber-50 text-amber-800'}`}>
             {sheet.supervisor_id ? (
               <>
-                รอ <b>{personName(sheet.supervisor_id)}</b> (หัวหน้างานของ{sheet.team_name}) เข้าระบบมาอนุมัติ — ผู้อื่นอนุมัติแทนไม่ได้
+                รอ <b>{personName(sheet.supervisor_id)}</b> (หัวหน้างานของ{sheet.team_name}) เข้าระบบมาอนุมัติ — หรือ Manager อนุมัติแทน
               </>
             ) : (
               <>
@@ -254,6 +265,9 @@ export default function DaySheet() {
           <p className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
             <b>ถูกตีกลับโดย {personName(sheet.rejected_by)}:</b> {sheet.reject_reason}
           </p>
+        )}
+        {sheet.supervisor_approved_at && !sheet.planner_approved_at && (
+          <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">หัวหน้างานอนุมัติแล้ว — Planner ตรวจและแก้เวลา/Allowance ได้จนกว่าจะกดอนุมัติ</p>
         )}
         {sheet.open_people > 0 && (
           <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -288,10 +302,10 @@ export default function DaySheet() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-medium text-slate-900">{names.get(r.worker_id) ?? '…'}</p>
-                  <p className="tabular text-sm text-slate-600">
+                  <p className={`tabular text-sm ${r.edit_count > 0 ? 'font-semibold text-rose-600' : 'text-slate-600'}`}>
                     {fmtTime(r.check_in)} → {r.check_out ? fmtOut(r.check_in, r.check_out) : <span className="text-amber-700">ยังไม่ออก</span>}
                   </p>
-                  {r.source === 'supervisor' && <p className="text-xs text-amber-700">แก้โดยหัวหน้า{r.note ? `: ${r.note}` : ''}</p>}
+                  {r.edit_count > 0 && <EditNote r={r} by={personName(r.updated_by)} />}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">{rowActions(r)}</div>
               </div>
@@ -328,14 +342,12 @@ export default function DaySheet() {
                 <tr key={r.id}>
                   <td className="px-5 py-3">
                     <p className="font-medium text-slate-900">{names.get(r.worker_id) ?? '…'}</p>
-                    {r.source === 'supervisor' && (
-                      <p className="text-xs text-amber-700" title={`แก้โดย ${personName(r.updated_by)} ${fmtDateTime(r.updated_at)}`}>
-                        แก้โดยหัวหน้า{r.note ? `: ${r.note}` : ''}
-                      </p>
-                    )}
+                    {r.edit_count > 0 && <EditNote r={r} by={personName(r.updated_by)} />}
                   </td>
-                  <td className="tabular px-3 py-3 text-center">{fmtTime(r.check_in)}</td>
-                  <td className="tabular px-3 py-3 text-center">{r.check_out ? fmtOut(r.check_in, r.check_out) : <Badge tone="amber">ยังไม่ออก</Badge>}</td>
+                  <td className={`tabular px-3 py-3 text-center ${r.edit_count > 0 ? 'bg-rose-50 font-semibold text-rose-600' : ''}`}>{fmtTime(r.check_in)}</td>
+                  <td className={`tabular px-3 py-3 text-center ${r.edit_count > 0 ? 'bg-rose-50 font-semibold text-rose-600' : ''}`}>
+                    {r.check_out ? fmtOut(r.check_in, r.check_out) : <Badge tone="amber">ยังไม่ออก</Badge>}
+                  </td>
                   <td className="tabular px-3 py-3 text-center font-medium">{fmtHours(r.normal_h)}</td>
                   <td className="tabular px-3 py-3 text-center font-medium text-brand-700">{fmtHours(r.ot_h)}</td>
                   <td className="px-3 py-3">
@@ -518,6 +530,16 @@ export default function DaySheet() {
         )}
       </Modal>
     </>
+  )
+}
+
+/** เวลาที่ถูกแก้: ขึ้นสีแดง บอกครั้งที่แก้ ใครแก้ และเหตุผล */
+function EditNote({ r, by }: { r: AttendanceHours; by: string }) {
+  return (
+    <p className="text-xs text-rose-600" title={`แก้ล่าสุดโดย ${by} ${fmtDateTime(r.updated_at)}`}>
+      <span className="font-semibold">แก้ไขครั้งที่ {r.edit_count}</span> · {by}
+      {r.note ? `: ${r.note}` : ''}
+    </p>
   )
 }
 

@@ -31,6 +31,7 @@ export interface Job {
   status: 'active' | 'closed'
   terms_confirmed_by: string | null
   terms_confirmed_at: string | null
+  budget: number | null
   created_at: string
 }
 
@@ -66,6 +67,7 @@ export interface AttendanceHours {
   holiday: boolean
   normal_h: number
   ot_h: number
+  edit_count: number
 }
 
 export interface DaySheet {
@@ -131,6 +133,7 @@ export interface CostDay {
   normal: number
   ot: number
   approved: boolean
+  edits?: number
 }
 
 export interface CostWorker {

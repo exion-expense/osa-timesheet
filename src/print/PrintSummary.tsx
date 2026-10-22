@@ -70,21 +70,18 @@ export function SummaryDoc({ data }: { data: Awaited<ReturnType<typeof loadCost>
                   name={purchaser?.name}
                   signature={purchaser?.sig}
                   date={purchaser?.at ? fmtDocDate(purchaser.at) : ''}
-                  note={purchaser?.at ? 'ส่งในระบบ' : undefined}
                 />
                 <SignBox
                   label="ผู้อนุมัติ / Approved by (Manager)"
                   name={approvers.map((s) => s.name).join(', ')}
                   signatures={approvers.map((s) => s.sig)}
                   date={approvers.length ? fmtDocDate(approvers.map((s) => s.at).sort().at(-1)!) : ''}
-                  note={cs.status === 'approved' ? 'อนุมัติในระบบ' : undefined}
                 />
                 <SignBox
                   label="ผู้ตรวจสอบเวลา / Verified by (Planner)"
                   name={planners.map((p) => p.name).join(', ')}
                   signatures={planners.map((p) => p.sig)}
                   date={planners.length ? fmtDocDate(planners.map((p) => p.at).sort().at(-1)!) : ''}
-                  note={planners.length ? 'อนุมัติในระบบ' : undefined}
                 />
         </div>
 

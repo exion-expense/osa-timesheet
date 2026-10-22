@@ -1,4 +1,4 @@
-import { CalendarClock, CheckCircle2, Circle, CircleDot, ClipboardCheck, Copy, Download, Eye, EyeOff, Link2, Lock, Play, Printer, QrCode, RefreshCw, Share2, Users } from 'lucide-react'
+import { CalendarClock, CheckCircle2, Circle, CircleDot, ClipboardCheck, Copy, Eye, EyeOff, Link2, Lock, Play, QrCode, RefreshCw, Share2, Users } from 'lucide-react'
 import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
@@ -311,31 +311,67 @@ function Workspace({ team, sheet, onChanged }: { team: TeamRow; sheet?: Sheet; o
               </div>
             )}
           </Card>
-          <QrCard team={team} onRotated={onChanged} />
+          <QrCard team={team} />
         </div>
       )}
     </div>
   )
 }
 
-function QrCard({ team, onRotated }: { team: TeamRow; onRotated: () => void }) {
+type Qr = { token: string; kind: 'in' | 'out'; expires_at: string }
+
+/** QR เข้างาน / ออกงาน แยกกัน ใช้ได้ 1 ชั่วโมง — ถ่ายรูปเก็บไว้สแกนทีหลังไม่ได้ */
+function QrCard({ team }: { team: TeamRow }) {
   const toast = useToast()
-  const [qr, setQr] = useState('')
+  const [kind, setKind] = useState<'in' | 'out'>(() => (new Date().getHours() >= 15 ? 'out' : 'in'))
+  const [qrs, setQrs] = useState<Qr[]>([])
+  const [img, setImg] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
-  const url = kioskUrl(team.qr_token)
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    supabase
+      .from('kiosk_tokens')
+      .select('token, kind, expires_at')
+      .eq('team_id', team.id)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setQrs((data as Qr[]) ?? []))
+  }, [team.id])
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 15000)
+    return () => clearInterval(t)
+  }, [])
+
+  const qr = qrs.find((q) => q.kind === kind && new Date(q.expires_at).getTime() > now)
+  const url = qr ? kioskUrl(qr.token) : ''
+  const left = qr ? Math.max(0, Math.round((new Date(qr.expires_at).getTime() - now) / 60000)) : 0
+  const label = kind === 'in' ? 'เข้างาน' : 'ออกงาน'
   const info = {
     url,
+    kind,
     jobNo: team.jobs.job_no,
     jobTitle: team.jobs.title,
     team: team.name,
-    validText: `ใช้ได้ ${fmtDate(team.jobs.start_date)} – ${fmtDate(team.jobs.end_date)}`,
+    validText: qr ? `ใช้ได้ถึง ${fmtTime(qr.expires_at)} น. เท่านั้น` : '',
     company: 'OSA Valve Services (Thailand) Co., Ltd.',
   }
-  const fileName = `QR-ลงเวลา-${team.jobs.job_no}-${team.name}.png`
+  const fileName = `QR-${label}-${team.jobs.job_no}-${team.name}.png`
 
   useEffect(() => {
-    QRCode.toDataURL(url, { width: 480, margin: 1, errorCorrectionLevel: 'M' }).then(setQr)
+    if (!url) return setImg('')
+    QRCode.toDataURL(url, { width: 480, margin: 1, errorCorrectionLevel: 'M' }).then(setImg)
   }, [url])
+
+  async function issue() {
+    setBusy('issue')
+    const { data, error } = await supabase.rpc('issue_kiosk_qr', { p_team: team.id, p_kind: kind })
+    setBusy(null)
+    if (error) return toast.err(error)
+    setQrs((xs) => [data as Qr, ...xs])
+    setNow(Date.now())
+    toast.ok(`สร้าง QR ${label}แล้ว ใช้ได้ 1 ชั่วโมง`)
+  }
 
   async function copyImage() {
     setBusy('copy')
@@ -356,7 +392,7 @@ function QrCard({ team, onRotated }: { team: TeamRow; onRotated: () => void }) {
     try {
       const file = new File([await makeQrArtwork(info)], fileName, { type: 'image/png' })
       if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `ลงเวลา ${team.jobs.job_no} ${team.name}` })
+        await navigator.share({ files: [file], title: `QR ${label} ${team.jobs.job_no} ${team.name}` })
       } else {
         downloadBlob(file, fileName)
         toast.ok('บันทึกรูปแล้ว ส่งต่อในไลน์ได้เลย')
@@ -368,27 +404,6 @@ function QrCard({ team, onRotated }: { team: TeamRow; onRotated: () => void }) {
     }
   }
 
-  async function saveImage() {
-    setBusy('save')
-    try {
-      downloadBlob(await makeQrArtwork(info), fileName)
-    } catch (e) {
-      toast.err(e)
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  async function rotate() {
-    if (!window.confirm('ออก QR ใหม่?\n\nQR เดิมที่ส่งไปแล้วจะใช้ไม่ได้ทันที ต้องส่ง QR ใหม่ให้ทุกคนในทีม (ใช้เมื่อ QR หลุดไปถึงคนนอกทีม)')) return
-    setBusy('rotate')
-    const { error } = await supabase.rpc('rotate_team_qr', { p_team: team.id })
-    setBusy(null)
-    if (error) return toast.err(error)
-    toast.ok('ออก QR ใหม่แล้ว — ส่ง QR ใหม่ให้ทีมอีกครั้ง')
-    onRotated()
-  }
-
   async function copyLink() {
     await navigator.clipboard.writeText(url)
     toast.ok('คัดลอกลิงก์แล้ว')
@@ -396,36 +411,56 @@ function QrCard({ team, onRotated }: { team: TeamRow; onRotated: () => void }) {
 
   return (
     <div id="qr-card" className="scroll-mt-20">
-    <Card className="h-fit">
-      <CardHeader title="QR สำหรับลงเวลา" sub="ส่งให้ผู้รับเหมา หรือพิมพ์ติดหน้างาน" />
-      <div className="p-5">
-        {qr ? <img src={qr} alt="QR ลงเวลา" className="mx-auto w-full max-w-56 rounded-xl border border-slate-200" /> : <Spinner />}
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <Button size="sm" onClick={copyImage} loading={busy === 'copy'}>
-            <Copy className="size-4" /> คัดลอกรูป
-          </Button>
-          <Button size="sm" variant="secondary" onClick={shareImage} loading={busy === 'share'}>
-            <Share2 className="size-4" /> แชร์รูป
-          </Button>
-          <Button size="sm" variant="secondary" onClick={saveImage} loading={busy === 'save'}>
-            <Download className="size-4" /> บันทึกรูป
-          </Button>
-          <Link to={`/print/qr/${team.id}`} target="_blank" className="block">
-            <Button size="sm" variant="secondary" className="w-full">
-              <Printer className="size-4" /> พิมพ์ป้าย
-            </Button>
-          </Link>
+      <Card className="h-fit">
+        <CardHeader title="QR สำหรับลงเวลา" sub="เข้างานกับออกงานใช้คนละ QR · ใช้ได้ 1 ชั่วโมง" />
+        <div className="p-5">
+          <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 text-sm font-medium">
+            {(['in', 'out'] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => setKind(k)}
+                className={cx('rounded-lg py-2', kind === k ? (k === 'in' ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white') : 'text-slate-600')}
+              >
+                {k === 'in' ? 'QR เข้างาน' : 'QR ออกงาน'}
+              </button>
+            ))}
+          </div>
+          {qr ? (
+            <>
+              {img ? <img src={img} alt={`QR ${label}`} className="mx-auto w-full max-w-56 rounded-xl border border-slate-200" /> : <Spinner />}
+              <p className={cx('mt-3 text-center text-sm font-medium', left <= 10 ? 'text-rose-600' : 'text-slate-600')}>
+                ใช้ได้ถึง {fmtTime(qr.expires_at)} น. (อีก {left} นาที)
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <Button size="sm" onClick={copyImage} loading={busy === 'copy'}>
+                  <Copy className="size-4" /> คัดลอกรูป
+                </Button>
+                <Button size="sm" variant="secondary" onClick={shareImage} loading={busy === 'share'}>
+                  <Share2 className="size-4" /> แชร์รูป
+                </Button>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <button onClick={copyLink} className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800">
+                  <Link2 className="size-3.5" /> คัดลอกเป็นลิงก์แทน
+                </button>
+                <button onClick={issue} disabled={busy === 'issue'} className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800">
+                  <RefreshCw className="size-3.5" /> สร้างใหม่ (ต่อเวลา 1 ชม.)
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="py-6 text-center">
+              <p className="text-sm text-slate-600">
+                {kind === 'in' ? 'ตอนเช้าสร้าง QR เข้างาน แล้วส่งให้ลูกทีม' : 'ตอนเลิกงานสร้าง QR ออกงาน แล้วให้ลูกทีมสแกน'}
+              </p>
+              <Button className={cx('mt-4', kind === 'out' && 'bg-orange-500 hover:bg-orange-600')} loading={busy === 'issue'} onClick={issue}>
+                <QrCode className="size-4" /> สร้าง QR {label}
+              </Button>
+              <p className="mt-2 text-xs text-slate-500">ใช้ได้ 1 ชั่วโมง · หมดเวลาแล้วกดสร้างใหม่ได้</p>
+            </div>
+          )}
         </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <button onClick={copyLink} className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800">
-            <Link2 className="size-3.5" /> คัดลอกเป็นลิงก์แทน
-          </button>
-          <button onClick={rotate} disabled={busy === 'rotate'} className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-800">
-            <RefreshCw className="size-3.5" /> QR หลุด? ออก QR ใหม่
-          </button>
-        </div>
-      </div>
-    </Card>
+      </Card>
     </div>
   )
 }

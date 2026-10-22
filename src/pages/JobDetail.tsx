@@ -1,6 +1,8 @@
 import { ArrowLeft, CalendarDays, ChevronRight, FileSpreadsheet, Pencil, Plus, Trash2, UserRound, Users } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
+import { JobBudgetCard } from '../components/Budget'
+import { JobRates } from '../components/JobRates'
 import { TermsStatus } from '../components/TermsStatus'
 import { Badge, Button, Card, CardHeader, Empty, ErrorBox, Field, Input, Modal, PageHeader, Spinner, Tabs, useToast } from '../components/ui'
 import { useAuth } from '../lib/auth'
@@ -23,7 +25,10 @@ export default function JobDetail() {
   const { is, profile } = useAuth()
   const nav = useNavigate()
   const toast = useToast()
-  const [tab, setTab] = useState<'teams' | 'days' | 'cost' | 'terms'>('teams')
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState<'teams' | 'days' | 'cost' | 'terms'>(() =>
+    params.get('tab') === 'terms' || (is('purchase') && !is('admin')) ? 'terms' : 'teams',
+  )
   const [newCost, setNewCost] = useState<{ from: string; to: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [delText, setDelText] = useState<string | null>(null)
@@ -134,6 +139,8 @@ export default function JobDetail() {
         }
       />
 
+      <JobBudgetCard jobId={id} />
+
       <Tabs
         value={tab}
         onChange={setTab}
@@ -141,7 +148,7 @@ export default function JobDetail() {
           { value: 'teams', label: `ทีม (${teams.length})` },
           { value: 'days', label: `ใบลงเวลารายวัน (${days.length})` },
           { value: 'cost', label: `ใบคิดราคา (${costs.length})` },
-          { value: 'terms', label: 'เงื่อนไขคิดราคา' },
+          { value: 'terms', label: canPrice && !job.terms_confirmed_at ? 'ค่าแรงและเงื่อนไข ⚠️' : 'ค่าแรงและเงื่อนไข' },
         ]}
       />
 
@@ -268,7 +275,8 @@ export default function JobDetail() {
       )}
 
       {tab === 'terms' && (
-        <Card className="max-w-2xl">
+        <div className="grid gap-6 xl:grid-cols-2">
+        <Card className="h-fit">
           <CardHeader title="เงื่อนไขคิดราคา" sub={canPrice ? 'Purchase เป็นผู้กำหนด' : 'กำหนดโดย Purchase'} />
           <div className="space-y-5 p-5">
             <TermsStatus job={job} canEdit={canPrice} onConfirm={() => saveTerms({ terms_confirmed_at: new Date().toISOString() })} />
@@ -321,6 +329,8 @@ export default function JobDetail() {
             </div>
           </div>
         </Card>
+        <JobRates jobId={id} canEdit={canPrice} />
+        </div>
       )}
 
       <Modal

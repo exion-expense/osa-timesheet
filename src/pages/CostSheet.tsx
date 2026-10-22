@@ -88,32 +88,6 @@ export default function CostSheet() {
     reload()
   }
 
-  async function saveRate(workerId: string, v: string) {
-    const n = Number(v)
-    if (!(n >= 0)) return toast.err('ค่าแรงไม่ถูกต้อง')
-    const { error } = await supabase.from('worker_rates').upsert({ worker_id: workerId, day_rate: n })
-    if (error) return toast.err(error)
-    reload()
-  }
-
-  async function applyRateAll(v: string) {
-    const n = Number(v)
-    if (!(n > 0)) return
-    if (!confirm(`ใส่ค่าแรง ${fmtMoney(n)} บาท/วัน ให้ทุกคนที่ยังไม่มีค่าแรง?`)) return
-    const rows = snap.workers.filter((w) => !w.day_rate).map((w) => ({ worker_id: w.worker_id, day_rate: n }))
-    if (!rows.length) return
-    const { error } = await supabase.from('worker_rates').upsert(rows)
-    if (error) return toast.err(error)
-    toast.ok(`ใส่ค่าแรงให้ ${rows.length} คน`)
-    reload()
-  }
-
-  async function saveTerms(patch: Partial<Job>) {
-    const { error } = await supabase.from('jobs').update(patch).eq('id', job.id)
-    if (error) return toast.err(error)
-    reload()
-  }
-
   async function savePeriod() {
     if (!period) return
     const { error } = await supabase.from('cost_sheets').update({ period_from: period.from, period_to: period.to }).eq('id', id)
@@ -190,32 +164,42 @@ export default function CostSheet() {
 
       <div className="mb-6 grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader title="เงื่อนไขการคิด" sub={canEdit ? 'Purchase เปลี่ยนได้ก่อนส่งอนุมัติ' : undefined} />
+          <CardHeader
+            title="เงื่อนไขการคิด"
+            sub="Purchase กำหนดไว้ที่หน้าจ็อบตั้งแต่เริ่มงาน"
+            right={
+              canEdit && (
+                <Link to={`/jobs/${job.id}?tab=terms`} className="text-sm text-brand-600 hover:underline">
+                  แก้ค่าแรง/เงื่อนไข →
+                </Link>
+              )
+            }
+          />
           {draft && (
             <div className="px-5 pt-5">
-              <TermsStatus job={job} canEdit={canEdit} onConfirm={() => saveTerms({ terms_confirmed_at: new Date().toISOString() })} />
+              <TermsStatus job={job} canEdit={false} onConfirm={() => {}} />
             </div>
           )}
           <div className="grid gap-3 p-5 sm:grid-cols-2">
             <Choice
               label="วันทำงาน"
-              disabled={!canEdit}
+              disabled
               value={String(snap.job.workweek)}
               options={[
                 { v: '6', t: '6 วัน (อาทิตย์ ×2)' },
                 { v: '5', t: '5 วัน (เสาร์-อาทิตย์ ×2)' },
               ]}
-              onChange={(v) => saveTerms({ workweek: Number(v) as 5 | 6 })}
+              onChange={() => {}}
             />
             <Choice
               label="พักเย็นก่อน OT"
-              disabled={!canEdit}
+              disabled
               value={String(snap.job.evening_break)}
               options={[
                 { v: 'true', t: `พัก ${snap.settings.break_minutes} นาที` },
                 { v: 'false', t: 'ไม่พัก (OT ต่อเลย)' },
               ]}
-              onChange={(v) => saveTerms({ evening_break: v === 'true' })}
+              onChange={() => {}}
             />
           </div>
         </Card>
@@ -315,18 +299,11 @@ export default function CostSheet() {
           right={
             canEdit &&
             snap.missing_rates > 0 && (
-              <form
-                className="flex items-center gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  applyRateAll((e.currentTarget.elements.namedItem('all') as HTMLInputElement).value)
-                }}
-              >
-                <Input name="all" type="number" min={0} step="1" placeholder="ค่าแรง/วัน" className="w-32" />
-                <Button size="sm" variant="secondary" type="submit">
-                  ใส่ให้ทุกคนที่ว่าง
+              <Link to={`/jobs/${job.id}?tab=terms`}>
+                <Button size="sm" variant="secondary">
+                  ใส่ค่าแรงที่หน้าจ็อบ →
                 </Button>
-              </form>
+              </Link>
             )
           }
         />
@@ -355,21 +332,7 @@ export default function CostSheet() {
                     </p>
                   </td>
                   <td className="px-3 py-3 text-right">
-                    {canEdit ? (
-                      <input
-                        type="number"
-                        min={0}
-                        step="1"
-                        defaultValue={w.day_rate || ''}
-                        key={`${w.worker_id}-${w.day_rate}`}
-                        aria-label={`ค่าแรงต่อวัน ${w.name}`}
-                        onBlur={(e) => e.target.value !== String(w.day_rate || '') && saveRate(w.worker_id, e.target.value)}
-                        className={`tabular w-24 rounded-lg border px-2 py-1 text-right ${w.day_rate ? 'border-slate-300' : 'border-amber-400 bg-amber-50'}`}
-                        placeholder="0"
-                      />
-                    ) : (
-                      <span className="tabular">{fmtMoney(w.day_rate)}</span>
-                    )}
+                    <span className={`tabular ${w.day_rate ? '' : 'rounded bg-amber-50 px-1 text-amber-700'}`}>{w.day_rate ? fmtMoney(w.day_rate) : 'ยังไม่ใส่'}</span>
                     <p className="tabular mt-0.5 text-xs text-slate-400">{fmtMoney(w.unit)}/ชม.</p>
                   </td>
                   {(['n1', 'ot15', 'h2', 'h3'] as const).map((k) => (

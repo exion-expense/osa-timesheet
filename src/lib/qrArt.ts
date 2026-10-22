@@ -2,6 +2,7 @@ import QRCode from 'qrcode'
 
 export interface QrArtInfo {
   url: string
+  kind: 'in' | 'out'
   jobNo: string
   jobTitle: string
   team: string
@@ -11,7 +12,6 @@ export interface QrArtInfo {
 
 const W = 1080
 const H = 1350
-const BRAND = '#2b5ea7'
 const INK = '#142a4b'
 const MUTED = '#5b6b82'
 const FONT = '"IBM Plex Sans Thai", sans-serif'
@@ -55,7 +55,8 @@ export async function makeQrArtwork(info: QrArtInfo): Promise<Blob> {
   // พื้นหลัง
   ctx.fillStyle = '#eef4fb'
   ctx.fillRect(0, 0, W, H)
-  ctx.fillStyle = BRAND
+  const accent = info.kind === 'in' ? '#059669' : '#ea580c'
+  ctx.fillStyle = accent
   ctx.fillRect(0, 0, W, 210)
 
   // การ์ดขาว
@@ -81,10 +82,10 @@ export async function makeQrArtwork(info: QrArtInfo): Promise<Blob> {
   // หัวเรื่อง
   ctx.fillStyle = INK
   ctx.font = `600 72px ${FONT}`
-  ctx.fillText('สแกนเพื่อลงเวลา', W / 2, 330)
-  ctx.fillStyle = BRAND
-  ctx.font = `500 38px ${FONT}`
-  ctx.fillText('เข้างาน  ·  ออกงาน', W / 2, 385)
+  ctx.fillText(info.kind === 'in' ? 'สแกนลงเวลาเข้างาน' : 'สแกนลงเวลาออกงาน', W / 2, 330)
+  ctx.fillStyle = accent
+  ctx.font = `600 38px ${FONT}`
+  ctx.fillText(info.validText, W / 2, 385)
 
   // QR
   const q = document.createElement('canvas')
@@ -94,7 +95,7 @@ export async function makeQrArtwork(info: QrArtInfo): Promise<Blob> {
   const qy = 425
   roundRect(ctx, qx - 26, qy - 26, qs + 52, qs + 52, 36)
   ctx.lineWidth = 6
-  ctx.strokeStyle = BRAND
+  ctx.strokeStyle = accent
   ctx.stroke()
   ctx.drawImage(q, qx, qy, qs, qs)
 
@@ -104,14 +105,14 @@ export async function makeQrArtwork(info: QrArtInfo): Promise<Blob> {
   ctx.fillText(fitText(ctx, `${info.jobNo}  ·  ${info.jobTitle}`, W - 220), W / 2, 1075)
   ctx.fillStyle = MUTED
   ctx.font = `400 32px ${FONT}`
-  ctx.fillText(fitText(ctx, `${info.team}  ·  ${info.validText}`, W - 220), W / 2, 1125)
+  ctx.fillText(fitText(ctx, info.team, W - 220), W / 2, 1125)
 
   // ขั้นตอน
-  const steps = ['สแกน QR', 'เลือกชื่อ + ใส่ PIN', 'กดเช็คอิน / เช็คเอาท์']
+  const steps = ['สแกน QR', 'เลือกชื่อ + ใส่ PIN', info.kind === 'in' ? 'กดเช็คอิน' : 'กดเช็คเอาท์']
   const colW = (W - 200) / 3
   steps.forEach((t, i) => {
     const cx = 100 + colW * i + colW / 2
-    ctx.fillStyle = BRAND
+    ctx.fillStyle = accent
     ctx.beginPath()
     ctx.arc(cx, 1172, 22, 0, Math.PI * 2)
     ctx.fill()

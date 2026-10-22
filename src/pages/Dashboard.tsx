@@ -1,5 +1,6 @@
 import { BriefcaseBusiness, CircleDollarSign, ClipboardCheck, Clock, HardHat, Timer } from 'lucide-react'
 import { Link } from 'react-router'
+import { BudgetOverview } from '../components/Budget'
 import { Card, CardHeader, Empty, ErrorBox, PageHeader, Spinner, Stat } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import { dayOfMonth, fmtDate, fmtDateLong, fmtMoney, fmtNum } from '../lib/format'
@@ -34,7 +35,7 @@ export default function Dashboard() {
   const otShare = totalH ? ((h.ot + h.holiday_ot) / totalH) * 100 : 0
   const myPending = is('supervisor')
     ? d.pending_days_supervisor
-    : is('manager')
+    : profile?.role === 'manager'
       ? d.cost_waiting
       : is('planner')
       ? d.pending_days_planner
@@ -65,6 +66,8 @@ export default function Dashboard() {
           tone="violet"
         />
       </div>
+
+      <BudgetOverview />
 
       <div className="mb-6 grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">

@@ -29,7 +29,8 @@ export default function Inbox() {
       d = d.filter((x) => x.supervisor_id === profile?.id && !x.supervisor_approved_at && x.people > 0 && (x.work_date < today || x.open_people === 0))
       c = []
     } else if (is('manager')) {
-      d = []
+      // Manager: ใบคิดราคารออนุมัติ + ใบรายวันที่ยังไม่ครบ (อนุมัติแทนได้)
+      d = d.filter((x) => x.people > 0 && x.open_people === 0 && x.work_date <= today)
       c = c.filter((x) => x.status === 'submitted')
     } else if (is('planner')) {
       d = d.filter((x) => x.supervisor_approved_at && !x.planner_approved_at && x.people > 0)
@@ -48,7 +49,7 @@ export default function Inbox() {
   const hint = is('supervisor')
     ? 'ใบลงเวลาที่รอคุณตรวจ'
     : is('manager')
-      ? 'ใบคิดราคาที่ Purchase ส่งมา รอคุณอนุมัติ'
+      ? 'ใบคิดราคาที่ Purchase ส่งมา รอคุณอนุมัติ · ใบรายวันที่ยังไม่ครบ (อนุมัติแทนหัวหน้างาน/Planner ได้)'
     : is('planner')
       ? 'ใบลงเวลาที่หัวหน้างานอนุมัติแล้ว รอคุณตรวจและใส่ Allowance'
       : is('purchase')
@@ -59,7 +60,7 @@ export default function Inbox() {
     <>
       <PageHeader title="งานรออนุมัติ" sub={hint} />
       <div className="grid gap-6 xl:grid-cols-2">
-        {!is('purchase', 'manager') && (
+        {!is('purchase') && (
           <Card>
             <CardHeader title={`ใบลงเวลารายวัน (${days.length})`} />
             {days.length === 0 ? (

@@ -36,6 +36,19 @@ export function usePendingCounts(role: Role | null | undefined, userId: string |
         if (role === 'admin') next['/inbox'] = d.pending_days_supervisor + d.pending_days_planner
         if (role === 'purchase' || role === 'admin') next['/costs'] = d.cost_drafts
       }
+      if (role === 'purchase' || role === 'admin' || role === 'manager') {
+        const { data: jobs } = await supabase
+          .from('jobs')
+          .select('id, terms_confirmed_at, workers(active, worker_rates(day_rate))')
+          .eq('status', 'active')
+        type J = { terms_confirmed_at: string | null; workers: { active: boolean; worker_rates: { day_rate: number } | { day_rate: number }[] | null }[] }
+        const needs = ((jobs ?? []) as unknown as J[]).filter(
+          (j) =>
+            !j.terms_confirmed_at ||
+            j.workers.some((w) => w.active && !(Array.isArray(w.worker_rates) ? w.worker_rates.length : w.worker_rates)),
+        ).length
+        if (needs) next['/jobs'] = needs
+      }
       if (role === 'supervisor' || role === 'admin') {
         const today = todayYmd()
         const [teams, sheets] = await Promise.all([

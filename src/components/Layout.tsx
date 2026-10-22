@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, Calculator, CalendarClock, ClipboardCheck, History, KeyRound, LayoutDashboard, ListChecks, LogOut, Menu, Settings, Users, X, type LucideIcon } from 'lucide-react'
+import { BriefcaseBusiness, Calculator, CalendarClock, ClipboardCheck, History, KeyRound, LayoutDashboard, ListChecks, LogOut, Menu, PenLine, ScrollText, Settings, Users, X, type LucideIcon } from 'lucide-react'
 import { Suspense, useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router'
 import { useAuth } from '../lib/auth'
@@ -20,6 +20,7 @@ const ITEMS: Record<string, Item> = {
   inbox: { to: '/inbox', label: 'งานรออนุมัติ', short: 'รออนุมัติ', icon: ClipboardCheck },
   costs: { to: '/costs', label: 'คิดราคา', icon: Calculator },
   jobs: { to: '/jobs', label: 'จ็อบ', icon: BriefcaseBusiness },
+  log: { to: '/log', label: 'บันทึกเข้า-ออก', short: 'บันทึก', icon: ScrollText },
   users: { to: '/admin/users', label: 'ผู้ใช้งาน', icon: Users },
   settings: { to: '/admin/settings', label: 'ตั้งค่า', icon: Settings },
   audit: { to: '/admin/audit', label: 'ประวัติการแก้ไข', icon: History },
@@ -27,11 +28,11 @@ const ITEMS: Record<string, Item> = {
 
 /** เมนูเรียงตามงานที่ใช้บ่อยของแต่ละตำแหน่ง — 4 อันแรกขึ้นแถบล่างบนมือถือ */
 const MENU: Record<Role, string[]> = {
-  supervisor: ['today', 'inbox', 'status', 'jobs', 'home'],
-  planner: ['inbox', 'status', 'jobs', 'home', 'costs'],
-  purchase: ['costs', 'status', 'jobs', 'home'],
-  manager: ['inbox', 'costs', 'status', 'home', 'jobs', 'audit'],
-  admin: ['home', 'today', 'status', 'jobs', 'inbox', 'costs', 'users', 'settings', 'audit'],
+  supervisor: ['today', 'inbox', 'status', 'jobs', 'home', 'log'],
+  planner: ['inbox', 'status', 'jobs', 'home', 'costs', 'log'],
+  purchase: ['costs', 'jobs', 'status', 'home', 'log'],
+  manager: ['inbox', 'home', 'costs', 'jobs', 'today', 'status', 'log', 'users', 'settings', 'audit'],
+  admin: ['home', 'today', 'status', 'jobs', 'inbox', 'costs', 'log', 'users', 'settings', 'audit'],
 }
 
 export function Layout() {
@@ -133,6 +134,12 @@ export function Layout() {
       <ChangePassword open={pwOpen} onClose={() => setPwOpen(false)} />
 
       <main className="mx-auto max-w-7xl px-4 pt-6 pb-28 sm:px-6 lg:px-8 lg:py-8">
+        {profile?.role && !profile.signature_id && (
+          <Link to="/me" className="no-print mb-5 flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800 hover:bg-amber-100">
+            <PenLine className="size-4 shrink-0" />
+            ยังไม่มีลายเซ็น — เอกสารที่คุณอนุมัติจะขึ้นแค่ชื่อ · กดเพื่ออัปโหลด
+          </Link>
+        )}
         <Suspense fallback={<Spinner />}>
           <Outlet />
         </Suspense>

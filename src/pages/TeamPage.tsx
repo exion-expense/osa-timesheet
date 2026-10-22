@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarClock, Eye, EyeOff, Lock, Pencil, Printer, RefreshCw, UserMinus, UserPlus } from 'lucide-react'
+import { ArrowLeft, CalendarClock, Eye, EyeOff, Lock, Pencil, RefreshCw, UserMinus, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { Forbidden } from '../components/Guards'
@@ -200,16 +200,11 @@ export default function TeamPage() {
         </Card>
 
         <Card className="h-fit">
-          <CardHeader title="ลงเวลาวันนี้" sub="เปิดลงเวลา, PIN ประจำวัน และ QR อยู่ที่หน้าลงเวลาวันนี้" />
+          <CardHeader title="ลงเวลาวันนี้" sub="เปิดลงเวลา, PIN ประจำวัน และ QR เข้างาน/ออกงาน อยู่ที่หน้าลงเวลาวันนี้" />
           <div className="space-y-3 p-5">
             <Link to={`/today?team=${team.id}`} className="block">
               <Button className="w-full">
                 <CalendarClock className="size-4" /> ไปหน้าลงเวลาวันนี้
-              </Button>
-            </Link>
-            <Link to={`/print/qr/${team.id}`} target="_blank" className="block">
-              <Button variant="secondary" size="sm" className="w-full">
-                <Printer className="size-4" /> พิมพ์ป้าย QR
               </Button>
             </Link>
           </div>
