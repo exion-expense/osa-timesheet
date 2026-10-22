@@ -28,8 +28,11 @@ const rules = [
   [/postgres(ql)?:\/\/[^\s'"]*:[^\s'"@]+@/i, 'รหัสผ่านฐานข้อมูลใน connection string'],
   [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, 'private key'],
   [/\b\d-\d{4}-\d{5}-\d{2}-\d\b/, 'เลขบัตรประชาชน'],
+  [/(?<![\d.])[1-8]\d{12}(?![\d.])/, 'เลข 13 หลัก (อาจเป็นเลขบัตรประชาชน)'],
+  [/\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}/, 'GitHub token'],
+  [/\bsbp_[A-Za-z0-9]{30,}/, 'Supabase access token'],
 ]
-const allow = new Set(['supabase/migrations/0001_init.sql', 'supabase/local/stub.sql', 'supabase/tests/test.sql', 'src/lib/supabase.ts', 'README.md', 'SECURITY.md'])
+const allow = new Set(['supabase/migrations/0001_init.sql', 'supabase/local/stub.sql', 'supabase/tests/test.sql', 'src/lib/supabase.ts', 'vite.config.ts', '.github/workflows/deploy.yml', 'README.md', 'SECURITY.md'])
 let bad = 0
 for (const f of files) {
   if (/\.(env|pem|key|pdf|xlsx?|csv)$/i.test(f) || /(^|\/)\.env(\.|$)/.test(f)) {

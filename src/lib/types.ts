@@ -13,7 +13,7 @@ export interface Profile {
   full_name: string
   role: Role | null
   active: boolean
-  signature_png?: string | null
+  signature_id?: string | null
   created_at: string
 }
 
@@ -76,6 +76,10 @@ export interface DaySheet {
   supervisor_approved_at: string | null
   planner_approved_by: string | null
   planner_approved_at: string | null
+  supervisor_sig_id: string | null
+  supervisor_name: string | null
+  planner_sig_id: string | null
+  planner_name: string | null
   rejected_by: string | null
   rejected_at: string | null
   reject_reason: string | null
@@ -113,6 +117,8 @@ export interface CostSheet {
   created_at: string
   submitted_at: string | null
   submitted_by: string | null
+  submitted_sig_id: string | null
+  submitted_name: string | null
   approved_at: string | null
 }
 

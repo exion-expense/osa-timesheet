@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router'
 import { Logo } from '../components/Layout'
 import { Button, Field, Input } from '../components/ui'
-import { useAuth } from '../lib/auth'
+import { markActive, useAuth } from '../lib/auth'
 import { roleHome } from '../lib/nav'
 import { errMsg, supabase } from '../lib/supabase'
 
@@ -21,6 +21,7 @@ export default function Login() {
     e.preventDefault()
     setBusy(true)
     setError(null)
+    markActive()
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
     // สำเร็จแล้วไม่ต้อง navigate เอง — หน้านี้จะพาไปต่อเมื่อโหลดตำแหน่งเสร็จ (ไม่มีหน้าแว่บ)
     if (error) {

@@ -24,6 +24,7 @@ function securityMeta(supabaseUrl: string): Plugin {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
+    'upgrade-insecure-requests',
   ].join('; ')
   return {
     name: 'security-meta',
@@ -46,8 +47,22 @@ function githubPages(): Plugin {
   }
 }
 
-export default defineConfig(({ mode }) => {
+/** กันพลาด: ถ้าใส่คีย์ลับ (secret / service_role) มาแทนคีย์สาธารณะ ให้ build ล้มก่อนขึ้นเว็บ */
+function assertPublicKey(key: string) {
+  let payload = ''
+  try {
+    payload = Buffer.from(key.split('.')[1] ?? '', 'base64url').toString()
+  } catch {
+    /* not a JWT */
+  }
+  if (key.startsWith('sb_secret_') || /"role"\s*:\s*"service_role"/.test(payload)) {
+    throw new Error('VITE_SUPABASE_ANON_KEY เป็นคีย์ลับ — ห้ามใช้ในหน้าเว็บ ให้ใช้ Publishable key เท่านั้น')
+  }
+}
+
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  if (command === 'build') assertPublicKey(env.VITE_SUPABASE_ANON_KEY ?? '')
   return {
     base: env.VITE_BASE || '/',
     plugins: [react(), tailwindcss(), securityMeta(env.VITE_SUPABASE_URL ?? ''), githubPages()],

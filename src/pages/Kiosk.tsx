@@ -67,6 +67,13 @@ export default function Kiosk() {
     return () => clearInterval(t)
   }, [])
 
+  // เครื่องเดียวใช้หลายคน: ลงเวลาเสร็จหรือทิ้งไว้ ให้ล้าง PIN และกลับหน้าเลือกชื่อเอง
+  useEffect(() => {
+    if (step === 'pick') return
+    const t = setTimeout(reset, step === 'done' ? 15000 : 60000)
+    return () => clearTimeout(t)
+  }, [step, pin])
+
   const list = useMemo(() => {
     const s = q.trim().toLowerCase()
     return (team?.workers ?? []).filter((w) => !s || w.name.toLowerCase().includes(s))

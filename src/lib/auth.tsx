@@ -15,6 +15,25 @@ interface AuthState {
 
 const Ctx = createContext<AuthState | null>(null)
 
+// ไม่ได้ใช้งานเกิน 60 นาที ให้ออกจากระบบในเครื่องนี้ (กันคนอื่นหยิบเครื่องที่ล็อกอินค้างไว้)
+const IDLE_MS = 60 * 60 * 1000
+const LAST_KEY = 'osa-last-active'
+export function markActive() {
+  try {
+    localStorage.setItem(LAST_KEY, String(Date.now()))
+  } catch {
+    /* ignore */
+  }
+}
+function idleTooLong() {
+  try {
+    const last = Number(localStorage.getItem(LAST_KEY)) || 0
+    return last > 0 && Date.now() - last > IDLE_MS
+  } catch {
+    return false
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -68,6 +87,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut()
     sessionStorage.clear()
   }, [])
+
+  const userId = session?.user.id
+  useEffect(() => {
+    if (!userId) return
+    const expire = () => {
+      supabase.auth.signOut({ scope: 'local' })
+      sessionStorage.clear()
+    }
+    if (idleTooLong()) return expire()
+    markActive()
+    const onActive = () => (idleTooLong() ? expire() : markActive())
+    const events = ['pointerdown', 'keydown', 'visibilitychange'] as const
+    events.forEach((e) => document.addEventListener(e, onActive, { passive: true }))
+    const t = setInterval(() => idleTooLong() && expire(), 60000)
+    return () => {
+      events.forEach((e) => document.removeEventListener(e, onActive))
+      clearInterval(t)
+    }
+  }, [userId])
 
   const is = useCallback(
     (...roles: Role[]) => Boolean(profile?.active && profile.role && roles.includes(profile.role)),

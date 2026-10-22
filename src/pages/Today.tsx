@@ -311,14 +311,14 @@ function Workspace({ team, sheet, onChanged }: { team: TeamRow; sheet?: Sheet; o
               </div>
             )}
           </Card>
-          <QrCard team={team} />
+          <QrCard team={team} onRotated={onChanged} />
         </div>
       )}
     </div>
   )
 }
 
-function QrCard({ team }: { team: TeamRow }) {
+function QrCard({ team, onRotated }: { team: TeamRow; onRotated: () => void }) {
   const toast = useToast()
   const [qr, setQr] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
@@ -379,6 +379,16 @@ function QrCard({ team }: { team: TeamRow }) {
     }
   }
 
+  async function rotate() {
+    if (!window.confirm('ออก QR ใหม่?\n\nQR เดิมที่ส่งไปแล้วจะใช้ไม่ได้ทันที ต้องส่ง QR ใหม่ให้ทุกคนในทีม (ใช้เมื่อ QR หลุดไปถึงคนนอกทีม)')) return
+    setBusy('rotate')
+    const { error } = await supabase.rpc('rotate_team_qr', { p_team: team.id })
+    setBusy(null)
+    if (error) return toast.err(error)
+    toast.ok('ออก QR ใหม่แล้ว — ส่ง QR ใหม่ให้ทีมอีกครั้ง')
+    onRotated()
+  }
+
   async function copyLink() {
     await navigator.clipboard.writeText(url)
     toast.ok('คัดลอกลิงก์แล้ว')
@@ -406,9 +416,14 @@ function QrCard({ team }: { team: TeamRow }) {
             </Button>
           </Link>
         </div>
-        <button onClick={copyLink} className="mt-3 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800">
-          <Link2 className="size-3.5" /> คัดลอกเป็นลิงก์แทน
-        </button>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <button onClick={copyLink} className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800">
+            <Link2 className="size-3.5" /> คัดลอกเป็นลิงก์แทน
+          </button>
+          <button onClick={rotate} disabled={busy === 'rotate'} className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-800">
+            <RefreshCw className="size-3.5" /> QR หลุด? ออก QR ใหม่
+          </button>
+        </div>
       </div>
     </Card>
     </div>

@@ -4,21 +4,23 @@ import { fmtDocDate, fmtHours, fmtOut, fmtTime } from '../lib/format'
 import { must, useLoad } from '../lib/hooks'
 import { supabase } from '../lib/supabase'
 import type { AttendanceHours, DaySheet } from '../lib/types'
-import { DocHeader, DraftMark, Paper, PrintShell, SignBox } from './common'
+import { DocHeader, DraftMark, loadSigs, Paper, PrintShell, SignBox } from './common'
 
 export async function loadDay(id: string) {
     const sheet = must(await supabase.from('v_day_sheets').select('*').eq('id', id).single()) as DaySheet
-    const [rows, workers, people, settings] = await Promise.all([
+    const [rows, workers, people, settings, sigs] = await Promise.all([
       supabase.from('v_attendance_hours').select('*').eq('team_id', sheet.team_id).eq('work_date', sheet.work_date),
       supabase.from('workers').select('id, full_name').eq('job_id', sheet.job_id),
-      supabase.from('profiles').select('id, full_name, email, signature_png'),
+      supabase.from('profiles').select('id, full_name, email'),
       supabase.from('app_settings').select('company_name').eq('id', 1).maybeSingle(),
+      loadSigs([sheet.supervisor_sig_id, sheet.planner_sig_id]),
     ])
     return {
       sheet,
       rows: must(rows) as AttendanceHours[],
       workers: must(workers) as { id: string; full_name: string }[],
-      people: must(people) as { id: string; full_name: string; email: string; signature_png: string | null }[],
+      people: must(people) as { id: string; full_name: string; email: string }[],
+      sigs,
       company: (must(settings) as { company_name: string } | null)?.company_name ?? 'OSA Valve Services (Thailand) Co., Ltd.',
     }
 }
@@ -36,7 +38,7 @@ export default function PrintDay() {
 }
 
 export function DayDoc({ data }: { data: Awaited<ReturnType<typeof loadDay>> }) {
-  const { sheet, rows, workers, people, company } = data
+  const { sheet, rows, workers, people, company, sigs } = data
   const nm = (w: string) => workers.find((x) => x.id === w)?.full_name ?? ''
   const pn = (u: string | null) => people.find((p) => p.id === u)?.full_name || people.find((p) => p.id === u)?.email || ''
   const sorted = [...rows].sort((a, b) => nm(a.worker_id).localeCompare(nm(b.worker_id), 'th'))
@@ -101,15 +103,15 @@ export function DayDoc({ data }: { data: Awaited<ReturnType<typeof loadDay>> }) 
         <div className="mt-8 flex gap-4">
           <SignBox
             label="Prepared By (หัวหน้างาน)"
-            name={pn(sheet.supervisor_approved_by)}
-            signature={sheet.supervisor_approved_at ? people.find((p) => p.id === sheet.supervisor_approved_by)?.signature_png : null}
+            name={sheet.supervisor_name || pn(sheet.supervisor_approved_by)}
+            signature={sheet.supervisor_sig_id ? sigs.get(sheet.supervisor_sig_id) : null}
             date={sheet.supervisor_approved_at ? fmtDocDate(sheet.supervisor_approved_at) : ''}
             note={sheet.supervisor_approved_at ? 'อนุมัติในระบบ' : undefined}
           />
           <SignBox
             label="Approved By (Planner)"
-            name={pn(sheet.planner_approved_by)}
-            signature={sheet.planner_approved_at ? people.find((p) => p.id === sheet.planner_approved_by)?.signature_png : null}
+            name={sheet.planner_name || pn(sheet.planner_approved_by)}
+            signature={sheet.planner_sig_id ? sigs.get(sheet.planner_sig_id) : null}
             date={sheet.planner_approved_at ? fmtDocDate(sheet.planner_approved_at) : ''}
             note={sheet.planner_approved_at ? 'อนุมัติในระบบ' : undefined}
           />

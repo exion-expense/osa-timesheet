@@ -3,7 +3,7 @@ export function downloadCsv(filename: string, rows: (string | number | null | un
   const esc = (v: string | number | null | undefined) => {
     const s = v === null || v === undefined ? '' : String(v)
     // กันสูตร Excel ที่แฝงมากับชื่อ (CSV injection)
-    const safe = /^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s) ? `'${s}` : s
+    const safe = /^[=+\-@\t\r＝＋－＠]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s) ? `'${s}` : s
     return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
   }
   const text = '﻿' + rows.map((r) => r.map(esc).join(',')).join('\r\n')

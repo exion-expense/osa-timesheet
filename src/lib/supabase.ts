@@ -20,7 +20,7 @@ function safeJwtPayload(jwt: string): string {
 }
 
 export const supabase = createClient(url, key, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
 })
 
 // แปลงข้อความ error จาก Postgres/Supabase ให้อ่านง่าย

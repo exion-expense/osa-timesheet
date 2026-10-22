@@ -14,15 +14,29 @@ export default function Me() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
   const [sig, setSig] = useState<string | null>(null)
+  const [sigChanged, setSigChanged] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [busy, setBusy] = useState(false)
   const [pwOpen, setPwOpen] = useState(false)
 
   useEffect(() => {
     if (!profile) return
+    let alive = true
     setName(profile.full_name)
-    setSig(profile.signature_png ?? null)
+    setSig(null)
+    setSigChanged(false)
     setDirty(false)
+    if (profile.signature_id) {
+      supabase
+        .from('signatures')
+        .select('png')
+        .eq('id', profile.signature_id)
+        .maybeSingle()
+        .then(({ data }) => alive && setSig((data as { png: string } | null)?.png ?? null))
+    }
+    return () => {
+      alive = false
+    }
   }, [profile])
 
   async function onFile(f?: File) {
@@ -30,6 +44,7 @@ export default function Me() {
     setBusy(true)
     try {
       setSig(await processSignature(f))
+      setSigChanged(true)
       setDirty(true)
     } catch (e) {
       toast.err(errMsg(e))
@@ -43,9 +58,11 @@ export default function Me() {
     if (!profile) return
     if (name.trim().length < 2) return toast.err('กรุณากรอกชื่อ-นามสกุล')
     setBusy(true)
-    const { error } = await supabase.from('profiles').update({ full_name: name.trim(), signature_png: sig }).eq('id', profile.id)
+    const { error } = await supabase.from('profiles').update({ full_name: name.trim() }).eq('id', profile.id)
+    // ลายเซ็นบันทึกผ่านฐานข้อมูลที่ตรวจว่าเป็นรูป PNG จริง (เอกสารที่อนุมัติไปแล้วยังใช้ลายเซ็นเดิม)
+    const sigRes = !error && sigChanged ? await supabase.rpc('set_my_signature', { p_png: sig }) : null
     setBusy(false)
-    if (error) return toast.err(error)
+    if (error || sigRes?.error) return toast.err(error ?? sigRes?.error)
     toast.ok('บันทึกแล้ว')
     await refresh()
   }
@@ -76,7 +93,7 @@ export default function Me() {
         </Card>
 
         <Card>
-          <CardHeader title="ลายเซ็น" sub="ขึ้นในเอกสารเฉพาะเมื่อคุณกดอนุมัติในระบบแล้วเท่านั้น" />
+          <CardHeader title="ลายเซ็น" sub="ขึ้นในเอกสารเมื่อคุณกดอนุมัติ — เปลี่ยนทีหลัง เอกสารที่อนุมัติไปแล้วยังใช้ลายเซ็นเดิม" />
           <div className="space-y-4 p-5">
             <div className="flex h-36 items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-[repeating-linear-gradient(45deg,#f8fafc,#f8fafc_10px,#f1f5f9_10px,#f1f5f9_20px)]">
               {sig ? (
@@ -100,6 +117,7 @@ export default function Me() {
                   variant="ghost"
                   onClick={() => {
                     setSig(null)
+                    setSigChanged(true)
                     setDirty(true)
                   }}
                 >

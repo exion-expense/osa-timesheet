@@ -286,11 +286,22 @@ select pg_temp.ok((select count(*) = 1 and bool_and(check_out is not null) from 
 
 -- ---------- 11. ชื่อจริงและลายเซ็น ----------
 set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
-update public.profiles set full_name = 'สมชาย หัวหน้า', signature_png = 'data:image/png;base64,iVBORw0KGgo=' where id = auth.uid();
-select pg_temp.ok((select full_name = 'สมชาย หัวหน้า' and signature_png is not null from public.profiles where id = auth.uid()), 'แก้ชื่อและลายเซ็นของตัวเองได้');
+update public.profiles set full_name = 'สมชาย หัวหน้า' where id = auth.uid();
+select public.set_my_signature('data:image/png;base64,iVBORw0KGgo=') as sig1 \gset
+select pg_temp.ok((select full_name = 'สมชาย หัวหน้า' and signature_id = :'sig1' from public.profiles where id = auth.uid()), 'แก้ชื่อและลายเซ็นของตัวเองได้');
 update public.profiles set full_name = 'แอบแก้' where id = '00000000-0000-0000-0000-000000000002';
 select pg_temp.ok((select full_name <> 'แอบแก้' from public.profiles where id = '00000000-0000-0000-0000-000000000002'), 'แก้โปรไฟล์คนอื่นไม่ได้');
-select pg_temp.ok(pg_temp.raises($q$update public.profiles set signature_png = 'javascript:alert(1)' where id = auth.uid()$q$), 'ลายเซ็นต้องเป็นรูป PNG เท่านั้น');
+select pg_temp.ok(pg_temp.raises($q$select public.set_my_signature('javascript:alert(1)')$q$), 'ลายเซ็นต้องเป็นรูป PNG เท่านั้น');
+select pg_temp.ok(pg_temp.raises($q$select public.set_my_signature('data:image/png;base64,' || encode('GIF89a not a png'::bytea, 'base64'))$q$), 'ไฟล์ที่แอบอ้างว่าเป็น PNG ถูกปฏิเสธ');
+select pg_temp.ok(pg_temp.raises($q$update public.profiles set created_at = now() - interval '9 years' where id = auth.uid()$q$)
+                  or (select created_at > now() - interval '1 day' from public.profiles where id = auth.uid()), 'แก้วันที่สร้างบัญชีไม่ได้');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000002');
+select pg_temp.ok((select count(*) from public.signatures where id = :'sig1') = 0, 'ดึงลายเซ็นของคนอื่นที่ไม่ได้อยู่ในเอกสารของตัวเองไม่ได้');
+select pg_temp.ok(pg_temp.raises(format('update public.profiles set signature_id = %L where id = auth.uid()', :'sig1'))
+                  or (select signature_id is null from public.profiles where id = auth.uid()), 'เอาลายเซ็นของคนอื่นมาใช้ไม่ได้');
+select pg_temp.ok(pg_temp.raises($q$insert into public.signatures (user_id, png) values (auth.uid(), 'data:image/png;base64,iVBORw0KGgo=')$q$), 'เขียนตารางลายเซ็นตรงไม่ได้');
+reset role;
+select pg_temp.ok(not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'signature_png'), 'ลายเซ็นไม่อยู่ในตาราง profiles แล้ว');
 
 -- ---------- 12. ลบจ็อบ ----------
 reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
@@ -315,5 +326,67 @@ select pg_temp.ok((select count(*) from public.jobs where id = :'deljob') = 0
                   and (select count(*) from public.workers where job_id = :'deljob') = 0
                   and (select count(*) from public.attendance where job_id = :'deljob') = 0
                   and (select count(*) from public.cost_sheets where job_id = :'deljob') = 0, 'ลบจ็อบพร้อมข้อมูลทั้งหมด (รวมวันที่อนุมัติแล้ว)');
+
+
+-- ---------- 13. ตรวจความปลอดภัยรอบ 2 ----------
+-- ใบคิดราคาส่งได้ถึงเมื่อวานเท่านั้น
+set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
+select pg_temp.ok(pg_temp.raises($q$select public.submit_cost_sheet('40000000-0000-0000-0000-000000000002')$q$), 'ส่งใบคิดราคาที่เป็นวันนี้/อนาคตไม่ได้');
+
+-- อนุมัติแล้ว ชื่อ/ลายเซ็นติดเอกสาร เปลี่ยนโปรไฟล์ทีหลังเอกสารไม่เปลี่ยน
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select public.create_job(format('{"job_no":"SIG1","title":"ทดสอบลายเซ็น","start_date":"%s","end_date":"%s","teams":[{"name":"A","supervisor_id":"00000000-0000-0000-0000-000000000001","members":[{"full_name":"คนทดสอบ ลายเซ็น"}]}]}',
+  public.bkk_today() - 3, public.bkk_today() + 3)::jsonb) as sigjob \gset
+select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+insert into public.attendance (worker_id, team_id, check_in, check_out)
+select w.id, w.team_id, (public.bkk_today() - 2 + time '08:00') at time zone 'Asia/Bangkok', (public.bkk_today() - 2 + time '17:00') at time zone 'Asia/Bangkok'
+from public.workers w where w.job_id = :'sigjob';
+select id as sigsheet from public.day_sheets where job_id = :'sigjob' \gset
+select public.approve_day(:'sigsheet');
+update public.profiles set full_name = 'เปลี่ยนชื่อทีหลัง' where id = auth.uid();
+select public.set_my_signature('data:image/png;base64,iVBORw0KGgoA') as sig2 \gset
+select pg_temp.ok((select supervisor_sig_id = :'sig1' and supervisor_name = 'สมชาย หัวหน้า' from public.day_sheets where id = :'sigsheet'),
+  'เอกสารที่อนุมัติแล้วใช้ชื่อและลายเซ็นตอนอนุมัติ');
+select pg_temp.ok((select count(*) from public.signatures where id in (:'sig1', :'sig2')) = 2, 'ลายเซ็นเก่าที่ติดเอกสารยังอยู่');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
+select pg_temp.ok((select count(*) from public.signatures where id = :'sig1') = 1, 'Planner เห็นลายเซ็นในเอกสารที่ตัวเองดูได้');
+select pg_temp.ok((select count(*) from public.signatures where id = :'sig2') = 0, 'Planner ไม่เห็นลายเซ็นปัจจุบันที่ยังไม่ได้ใช้ในเอกสาร');
+select public.approve_day(:'sigsheet');
+select pg_temp.ok((select planner_name = 'แพลนเนอร์' and planner_sig_id is null from public.day_sheets where id = :'sigsheet'), 'Planner ที่ไม่มีลายเซ็น บันทึกแค่ชื่อ');
+
+-- สิทธิ์ระดับทีม: หัวหน้าทีม B ในจ็อบเดียวกัน ยุ่งกับทีม A ไม่ได้
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+insert into public.teams (id, job_id, name, supervisor_id) values
+  ('20000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000001', 'ทีม B', '00000000-0000-0000-0000-000000000002');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000002');
+select pg_temp.ok((select count(*) from public.daily_pins p join public.workers w on w.id = p.worker_id
+                   where w.team_id = '20000000-0000-0000-0000-000000000001') = 0, 'หัวหน้าทีม B ดู PIN ทีม A ไม่ได้');
+select pg_temp.ok(pg_temp.raises($q$select public.generate_pins('20000000-0000-0000-0000-000000000001')$q$), 'หัวหน้าทีม B สร้าง PIN ทีม A ไม่ได้');
+select pg_temp.ok(pg_temp.raises($q$insert into public.attendance (worker_id, team_id, check_in) values ('30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', now())$q$),
+  'หัวหน้าทีม B ลงเวลาแทนทีม A ไม่ได้');
+select pg_temp.ok(pg_temp.raises($q$select public.rotate_team_qr('20000000-0000-0000-0000-000000000001')$q$), 'หัวหน้าทีม B ออก QR ใหม่ให้ทีม A ไม่ได้');
+select pg_temp.ok((select count(*) from public.jobs where id = '10000000-0000-0000-0000-000000000001') = 1, 'หัวหน้าทีม B ยังเห็นจ็อบ');
+
+-- กรอก PIN ผิดรัวๆ ทั้งทีม → พักทั้งทีม
+reset role;
+insert into public.kiosk_failures (team_id) select '20000000-0000-0000-0000-000000000001' from generate_series(1, 30);
+set role anon; select set_config('request.jwt.claims', '{"role":"anon"}', false);
+select pg_temp.ok(public.kiosk_status(:'tok', '30000000-0000-0000-0000-000000000002', :'pin2') ->> 'error' like '%รอ 10 นาที%', 'กรอกผิดเกินกำหนดทั้งทีม ถูกพักชั่วคราว');
+reset role; delete from public.kiosk_failures;
+set role anon;
+select pg_temp.ok((public.kiosk_status(:'tok', '30000000-0000-0000-0000-000000000002', :'pin2') ->> 'ok')::boolean, 'พ้นช่วงพัก กรอกถูกใช้ได้ตามปกติ');
+select pg_temp.ok(pg_temp.raises('select * from public.kiosk_failures'), 'anon อ่านบันทึกการกรอกผิดไม่ได้');
+select pg_temp.ok(pg_temp.raises('select * from public.signatures'), 'anon อ่านลายเซ็นไม่ได้');
+
+-- ออก QR ใหม่ → QR เดิมใช้ไม่ได้
+reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+select public.rotate_team_qr('20000000-0000-0000-0000-000000000001');
+reset role; set role anon;
+select pg_temp.ok(public.kiosk_team(:'tok') ->> 'error' = 'QR ไม่ถูกต้อง', 'ออก QR ใหม่แล้ว QR เดิมใช้ไม่ได้');
+
+-- บัญชีใหม่ไม่รับชื่อที่ส่งมาเอง
+reset role;
+insert into auth.users (id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000ee', 'fake@test.local', '{"full_name":"สมชาย หัวหน้า"}');
+select pg_temp.ok((select full_name = '' and role is null from public.profiles where id = '00000000-0000-0000-0000-0000000000ee'), 'สมัครเองตั้งชื่อเลียนแบบพนักงานไม่ได้');
 
 \echo ALL TESTS PASSED

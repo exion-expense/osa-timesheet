@@ -66,6 +66,14 @@ export function DocHeader({ company, right }: { company: string; right?: ReactNo
   )
 }
 
+/** รูปลายเซ็นที่ติดอยู่กับเอกสาร (ฐานข้อมูลให้เห็นเฉพาะของเอกสารที่ตัวเองมีสิทธิ์ดู) */
+export async function loadSigs(ids: (string | null | undefined)[]) {
+  const want = [...new Set(ids.filter(Boolean) as string[])]
+  if (!want.length) return new Map<string, string>()
+  const rows = must(await supabase.from('signatures').select('id, png').in('id', want)) as { id: string; png: string }[]
+  return new Map(rows.map((r) => [r.id, r.png]))
+}
+
 export async function loadCost(id: string) {
   const cs = must(await supabase.from('cost_sheets').select('*').eq('id', id).single()) as CostSheet
   const snap =
@@ -73,37 +81,45 @@ export async function loadCost(id: string) {
       ? (must(await supabase.rpc('cost_preview', { p_job: cs.job_id, p_from: cs.period_from, p_to: cs.period_to })) as CostSnapshot)
       : (cs.snapshot as CostSnapshot)
   const [appr, people, teams, days] = await Promise.all([
-    supabase.from('cost_sheet_approvals').select('supervisor_id, approved_at').eq('cost_sheet_id', id),
-    supabase.from('profiles').select('id, full_name, email, signature_png'),
+    supabase.from('cost_sheet_approvals').select('supervisor_id, approved_at, sig_id, approver_name').eq('cost_sheet_id', id),
+    supabase.from('profiles').select('id, full_name, email'),
     supabase.from('teams').select('supervisor_id').eq('job_id', cs.job_id),
-    supabase.from('day_sheets').select('planner_approved_by, planner_approved_at').eq('job_id', cs.job_id)
+    supabase.from('day_sheets').select('planner_approved_by, planner_approved_at, planner_sig_id, planner_name').eq('job_id', cs.job_id)
       .gte('work_date', cs.period_from).lte('work_date', cs.period_to).not('planner_approved_by', 'is', null),
   ])
-  const ppl = must(people) as { id: string; full_name: string; email: string; signature_png: string | null }[]
+  const ppl = must(people) as { id: string; full_name: string; email: string }[]
   const name = (uid: string | null) => {
     const p = ppl.find((x) => x.id === uid)
     return p?.full_name || p?.email || ''
   }
-  const sig = (uid: string | null) => ppl.find((x) => x.id === uid)?.signature_png ?? null
-  // Planner ที่อนุมัติใบรายวันในช่วงนี้ (ปกติคนเดียว) — ใช้วันที่อนุมัติล่าสุด
-  const plannerMap = new Map<string, string>()
-  for (const d of must(days) as { planner_approved_by: string; planner_approved_at: string }[]) {
+  // ชื่อและลายเซ็นใช้ตามที่บันทึกไว้ตอนอนุมัติ (เปลี่ยนโปรไฟล์ทีหลัง เอกสารไม่เปลี่ยนตาม)
+  type PlannerDay = { planner_approved_by: string; planner_approved_at: string; planner_sig_id: string | null; planner_name: string | null }
+  const plannerMap = new Map<string, PlannerDay>()
+  for (const d of must(days) as PlannerDay[]) {
     const prev = plannerMap.get(d.planner_approved_by)
-    if (!prev || d.planner_approved_at > prev) plannerMap.set(d.planner_approved_by, d.planner_approved_at)
+    if (!prev || d.planner_approved_at > prev.planner_approved_at) plannerMap.set(d.planner_approved_by, d)
   }
   const supIds = [...new Set((must(teams) as { supervisor_id: string | null }[]).map((t) => t.supervisor_id).filter(Boolean) as string[])]
-  const approvals = must(appr) as { supervisor_id: string; approved_at: string }[]
+  const approvals = must(appr) as { supervisor_id: string; approved_at: string; sig_id: string | null; approver_name: string | null }[]
+  const sigs = await loadSigs([cs.submitted_sig_id, ...approvals.map((a) => a.sig_id), ...[...plannerMap.values()].map((d) => d.planner_sig_id)])
+  const sig = (sid: string | null | undefined) => (sid ? (sigs.get(sid) ?? null) : null)
   return {
     cs,
     snap,
     name,
-    sig,
-    purchaser: cs.submitted_by ? { id: cs.submitted_by, name: name(cs.submitted_by), at: cs.submitted_at, sig: sig(cs.submitted_by) } : null,
+    purchaser: cs.submitted_by
+      ? { id: cs.submitted_by, name: cs.submitted_name || name(cs.submitted_by), at: cs.submitted_at, sig: sig(cs.submitted_sig_id) }
+      : null,
     supervisors: supIds.map((s) => {
-      const at = approvals.find((a) => a.supervisor_id === s)?.approved_at ?? null
-      return { id: s, name: name(s), at, sig: at ? sig(s) : null }
+      const a = approvals.find((x) => x.supervisor_id === s)
+      return { id: s, name: a?.approver_name || name(s), at: a?.approved_at ?? null, sig: sig(a?.sig_id) }
     }),
-    planners: [...plannerMap.entries()].map(([pid, at]) => ({ id: pid, name: name(pid), at, sig: sig(pid) })),
+    planners: [...plannerMap.entries()].map(([pid, d]) => ({
+      id: pid,
+      name: d.planner_name || name(pid),
+      at: d.planner_approved_at,
+      sig: sig(d.planner_sig_id),
+    })),
   }
 }
 
