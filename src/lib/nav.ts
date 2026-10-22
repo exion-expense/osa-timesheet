@@ -12,6 +12,8 @@ export function roleHome(role: Role | null | undefined) {
       return '/inbox'
     case 'purchase':
       return '/costs'
+    case 'manager':
+      return '/inbox'
     default:
       return '/'
   }
@@ -28,7 +30,8 @@ export function usePendingCounts(role: Role | null | undefined, userId: string |
       const { data } = await supabase.rpc('dashboard')
       if (data) {
         const d = data as { pending_days_supervisor: number; pending_days_planner: number; cost_drafts: number; cost_waiting: number }
-        if (role === 'supervisor') next['/inbox'] = d.pending_days_supervisor + d.cost_waiting
+        if (role === 'supervisor') next['/inbox'] = d.pending_days_supervisor
+        if (role === 'manager') next['/inbox'] = d.cost_waiting
         if (role === 'planner') next['/inbox'] = d.pending_days_planner
         if (role === 'admin') next['/inbox'] = d.pending_days_supervisor + d.pending_days_planner
         if (role === 'purchase' || role === 'admin') next['/costs'] = d.cost_drafts

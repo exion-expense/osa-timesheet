@@ -1,10 +1,11 @@
-export type Role = 'admin' | 'supervisor' | 'planner' | 'purchase'
+export type Role = 'admin' | 'supervisor' | 'planner' | 'purchase' | 'manager'
 
 export const ROLE_LABEL: Record<Role, string> = {
   admin: 'แอดมิน',
   supervisor: 'หัวหน้างาน',
   planner: 'Planner',
   purchase: 'Purchase',
+  manager: 'Manager',
 }
 
 export interface Profile {

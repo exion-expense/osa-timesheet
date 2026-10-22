@@ -110,10 +110,9 @@ export async function loadCost(id: string) {
     purchaser: cs.submitted_by
       ? { id: cs.submitted_by, name: cs.submitted_name || name(cs.submitted_by), at: cs.submitted_at, sig: sig(cs.submitted_sig_id) }
       : null,
-    supervisors: supIds.map((s) => {
-      const a = approvals.find((x) => x.supervisor_id === s)
-      return { id: s, name: a?.approver_name || name(s), at: a?.approved_at ?? null, sig: sig(a?.sig_id) }
-    }),
+    // ผู้อนุมัติราคา (Manager) — ใบเก่าก่อนมี Manager จะเป็นหัวหน้างานที่อนุมัติไว้
+    approvers: approvals.map((a) => ({ id: a.supervisor_id, name: a.approver_name || name(a.supervisor_id), at: a.approved_at, sig: sig(a.sig_id) })),
+    supervisors: supIds.map((s) => ({ id: s, name: name(s) })),
     planners: [...plannerMap.entries()].map(([pid, d]) => ({
       id: pid,
       name: d.planner_name || name(pid),

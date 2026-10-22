@@ -29,7 +29,7 @@ function periodText(from: string, to: string) {
 
 /** สรุปค่าแรง — รูปแบบเดียวกับเอกสารตัวอย่างของบริษัท (หน้าสั้น ไม่มีช่องเซ็น) */
 export function SummaryDoc({ data }: { data: Awaited<ReturnType<typeof loadCost>> }) {
-  const { cs, snap, supervisors, purchaser, planners } = data
+  const { cs, snap, approvers, purchaser, planners } = data
   return (
     <Paper className="mx-auto">
       <DraftMark show={cs.status !== 'approved'} />
@@ -73,11 +73,11 @@ export function SummaryDoc({ data }: { data: Awaited<ReturnType<typeof loadCost>
                   note={purchaser?.at ? 'ส่งในระบบ' : undefined}
                 />
                 <SignBox
-                  label="ผู้ตรวจสอบ / Checked by (หัวหน้างาน)"
-                  name={supervisors.map((s) => s.name).join(', ')}
-                  signatures={supervisors.map((s) => s.sig)}
-                  date={supervisors.length && supervisors.every((s) => s.at) ? fmtDocDate(supervisors.map((s) => s.at!).sort().at(-1)!) : ''}
-                  note={supervisors.length && supervisors.every((s) => s.at) ? 'อนุมัติในระบบ' : supervisors.some((s) => s.at) ? 'อนุมัติบางส่วน' : undefined}
+                  label="ผู้อนุมัติ / Approved by (Manager)"
+                  name={approvers.map((s) => s.name).join(', ')}
+                  signatures={approvers.map((s) => s.sig)}
+                  date={approvers.length ? fmtDocDate(approvers.map((s) => s.at).sort().at(-1)!) : ''}
+                  note={cs.status === 'approved' ? 'อนุมัติในระบบ' : undefined}
                 />
                 <SignBox
                   label="ผู้ตรวจสอบเวลา / Verified by (Planner)"

@@ -2,6 +2,7 @@ import { ChevronRight, FileSpreadsheet } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { Badge, Card, Empty, ErrorBox, PageHeader, Spinner, Tabs } from '../components/ui'
+import { useAuth } from '../lib/auth'
 import { fmtDate, fmtMoney } from '../lib/format'
 import { must, useLoad } from '../lib/hooks'
 import { CostBadge } from '../lib/status'
@@ -14,7 +15,8 @@ type Tab = 'draft' | 'submitted' | 'approved'
 
 /** หน้าคิดราคา: วันที่อนุมัติครบไหลเข้าใบร่างของแต่ละจ็อบอัตโนมัติ */
 export default function Costs() {
-  const [tab, setTab] = useState<Tab>('draft')
+  const { is } = useAuth()
+  const [tab, setTab] = useState<Tab>(is('manager') ? 'submitted' : 'draft')
   const { data, error, loading, reload } = useLoad(async () => {
     const [cs, days] = await Promise.all([
       supabase
@@ -39,14 +41,14 @@ export default function Costs() {
     <>
       <PageHeader
         title="คิดราคา"
-        sub="เมื่อหัวหน้างานและ Planner อนุมัติวันไหนครบ วันนั้นจะเข้ามาอยู่ในใบคิดราคา (ร่าง) ของจ็อบนั้นเอง ใส่ค่าแรงแล้วส่งหัวหน้างานอนุมัติได้เลย"
+        sub="เมื่อหัวหน้างานและ Planner อนุมัติวันไหนครบ วันนั้นจะเข้ามาอยู่ในใบคิดราคา (ร่าง) ของจ็อบนั้นเอง ใส่ค่าแรงแล้วส่งให้ Manager อนุมัติได้เลย"
       />
       <Tabs
         value={tab}
         onChange={setTab}
         items={[
           { value: 'draft', label: `ต้องทำ (${count('draft')})` },
-          { value: 'submitted', label: `รอหัวหน้างานอนุมัติ (${count('submitted')})` },
+          { value: 'submitted', label: `รอ Manager อนุมัติ (${count('submitted')})` },
           { value: 'approved', label: `อนุมัติแล้ว (${count('approved')})` },
         ]}
       />

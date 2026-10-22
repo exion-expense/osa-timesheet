@@ -159,7 +159,7 @@ export default function Status() {
                             label="ลงเวลาเข้า-ออก"
                             extra={`เข้า ${s.people} คน · ยังไม่ออก ${s.open_people}`}
                           />
-                          <StepChip state={s.supervisor_approved_at ? 'done' : s.people > 0 && s.open_people === 0 ? 'waiting' : 'todo'} label="หัวหน้าอนุมัติ" at={s.supervisor_approved_at} by={pn(s.supervisor_approved_by)} />
+                          <StepChip state={s.supervisor_approved_at ? 'done' : s.people > 0 && s.open_people === 0 ? 'waiting' : 'todo'} label="Manager อนุมัติ" at={s.supervisor_approved_at} by={pn(s.supervisor_approved_by)} />
                           <StepChip state={s.planner_approved_at ? 'done' : s.supervisor_approved_at ? 'waiting' : 'todo'} label="Planner อนุมัติ" at={s.planner_approved_at} by={pn(s.planner_approved_by)} />
                           <StepChip
                             state={pricedState}
@@ -204,7 +204,7 @@ export default function Status() {
                         {c.cost_sheet_approvals.map((a) => (
                           <StepChip key={a.supervisor_id} state="done" label="หัวหน้าอนุมัติ" at={a.approved_at} by={pn(a.supervisor_id)} />
                         ))}
-                        <StepChip state={c.status === 'approved' ? 'done' : c.status === 'submitted' ? 'waiting' : 'todo'} label="อนุมัติราคาครบ" at={c.approved_at} />
+                        <StepChip state={c.status === 'approved' ? 'done' : c.status === 'submitted' ? 'waiting' : 'todo'} label="อนุมัติราคาแล้ว" at={c.approved_at} />
                       </div>
                       {c.reject_reason && c.status === 'draft' && <p className="mt-2 text-xs text-rose-600">ถูกตีกลับ: {c.reject_reason}</p>}
                     </Link>

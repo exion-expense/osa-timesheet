@@ -30,6 +30,7 @@ const MENU: Record<Role, string[]> = {
   supervisor: ['today', 'inbox', 'status', 'jobs', 'home'],
   planner: ['inbox', 'status', 'jobs', 'home', 'costs'],
   purchase: ['costs', 'status', 'jobs', 'home'],
+  manager: ['inbox', 'costs', 'status', 'home', 'jobs', 'audit'],
   admin: ['home', 'today', 'status', 'jobs', 'inbox', 'costs', 'users', 'settings', 'audit'],
 }
 

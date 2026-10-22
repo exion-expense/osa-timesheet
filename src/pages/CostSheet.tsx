@@ -11,9 +11,19 @@ import { CostBadge } from '../lib/status'
 import { supabase } from '../lib/supabase'
 import type { CostSheet as CS, CostSnapshot, Job } from '../lib/types'
 
+type DayRow = {
+  id: string
+  work_date: string
+  team_name: string
+  supervisor_id: string | null
+  people: number
+  supervisor_approved_at: string | null
+  planner_approved_at: string | null
+}
+
 export default function CostSheet() {
   const { id = '' } = useParams()
-  const { is, profile } = useAuth()
+  const { is } = useAuth()
   const toast = useToast()
   const nav = useNavigate()
   const [busy, setBusy] = useState(false)
@@ -31,9 +41,14 @@ export default function CostSheet() {
     const cs = must(await supabase.from('cost_sheets').select('*').eq('id', id).single()) as CS
     const [job, days, teams, appr] = await Promise.all([
       supabase.from('jobs').select('*').eq('id', cs.job_id).single(),
-      supabase.from('day_sheets').select('work_date, supervisor_approved_at, planner_approved_at').eq('job_id', cs.job_id).gte('work_date', cs.period_from).lte('work_date', cs.period_to),
+      supabase
+        .from('v_day_sheets')
+        .select('id, work_date, team_name, supervisor_id, people, supervisor_approved_at, planner_approved_at')
+        .eq('job_id', cs.job_id)
+        .gte('work_date', cs.period_from)
+        .lte('work_date', cs.period_to),
       supabase.from('teams').select('supervisor_id, supervisor:profiles(id, full_name, email)').eq('job_id', cs.job_id),
-      supabase.from('cost_sheet_approvals').select('supervisor_id, approved_at').eq('cost_sheet_id', id),
+      supabase.from('cost_sheet_approvals').select('supervisor_id, approved_at, approver_name').eq('cost_sheet_id', id),
     ])
     const snap =
       cs.status === 'draft'
@@ -43,8 +58,9 @@ export default function CostSheet() {
     ;(must(teams) as unknown as { supervisor: { id: string; full_name: string; email: string } | null }[]).forEach(
       (t) => t.supervisor && sups.set(t.supervisor.id, t.supervisor.full_name || t.supervisor.email),
     )
-    const dayRows = must(days) as { work_date: string; supervisor_approved_at: string | null; planner_approved_at: string | null }[]
-    return { cs, job: must(job) as Job, snap, sups, appr: must(appr) as { supervisor_id: string; approved_at: string }[], dayRows }
+    // วันที่เปิดลงเวลาแต่ไม่มีใครมาทำงาน ไม่ต้องรออนุมัติ
+    const dayRows = (must(days) as DayRow[]).filter((d) => d.people > 0)
+    return { cs, job: must(job) as Job, snap, sups, appr: must(appr) as { supervisor_id: string; approved_at: string; approver_name: string | null }[], dayRows }
   }, [id])
 
   if (loading && !data) return <Spinner />
@@ -52,15 +68,14 @@ export default function CostSheet() {
   const { cs, job, snap, sups, appr, dayRows } = data
   // ส่งได้ถึงวันไหน: ก่อนวันแรกที่ยังอนุมัติไม่ครบ และไม่เกินเมื่อวาน (ถ้าจ็อบยังไม่จบ)
   const today = todayYmd()
-  const pendingDates = [...new Set(dayRows.filter((d) => !d.supervisor_approved_at || !d.planner_approved_at).map((d) => d.work_date))].sort()
+  const pendingRows = dayRows.filter((d) => !d.supervisor_approved_at || !d.planner_approved_at).sort((a, b) => a.work_date.localeCompare(b.work_date))
+  const pendingDates = [...new Set(pendingRows.map((d) => d.work_date))]
   const approvedDates = [...new Set(dayRows.filter((d) => d.supervisor_approved_at && d.planner_approved_at).map((d) => d.work_date))].sort()
   const maxCut = cs.period_to < today ? cs.period_to : addDays(today, -1)
   const cutLimit = pendingDates.length && addDays(pendingDates[0], -1) < maxCut ? addDays(pendingDates[0], -1) : maxCut
   const readyDays = approvedDates.filter((d) => d <= cutLimit)
   const draft = cs.status === 'draft'
   const canEdit = draft && is('purchase', 'admin')
-  const isJobSup = is('supervisor') && sups.has(profile?.id ?? '')
-  const iApproved = appr.some((a) => a.supervisor_id === profile?.id)
   const totalHours = snap.workers.reduce((s, w) => s + w.hours.n1 + w.hours.ot15 + w.hours.h2 + w.hours.h3, 0)
   const manDays = snap.workers.reduce((s, w) => s + w.work_days, 0)
 
@@ -205,22 +220,28 @@ export default function CostSheet() {
           </div>
         </Card>
         <Card>
-          <CardHeader title="การอนุมัติ" sub="หัวหน้างานของจ็อบต้องอนุมัติครบทุกคน" />
+          <CardHeader title="การอนุมัติราคา" sub="Manager คนใดคนหนึ่งอนุมัติ" />
           <ul className="space-y-3 p-5">
-            {[...sups.entries()].map(([sid, name]) => {
-              const a = appr.find((x) => x.supervisor_id === sid)
-              return (
-                <li key={sid} className="flex items-center gap-3">
-                  <div className={`flex size-7 items-center justify-center rounded-full ${a ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+            {appr.length === 0 ? (
+              <li className="flex items-center gap-3">
+                <div className="flex size-7 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                  <Check className="size-4" />
+                </div>
+                <p className="text-sm text-slate-500">{cs.status === 'submitted' ? 'รอ Manager อนุมัติ' : 'ยังไม่ได้ส่งอนุมัติ'}</p>
+              </li>
+            ) : (
+              appr.map((a) => (
+                <li key={a.supervisor_id} className="flex items-center gap-3">
+                  <div className="flex size-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
                     <Check className="size-4" />
                   </div>
                   <div className="text-sm">
-                    <p className="font-medium text-slate-900">{name}</p>
-                    <p className="text-xs text-slate-500">{a ? fmtDateTime(a.approved_at) : cs.status === 'submitted' ? 'รออนุมัติ' : '—'}</p>
+                    <p className="font-medium text-slate-900">{a.approver_name || 'Manager'}</p>
+                    <p className="text-xs text-slate-500">อนุมัติเมื่อ {fmtDateTime(a.approved_at)}</p>
                   </div>
                 </li>
-              )
-            })}
+              ))
+            )}
           </ul>
         </Card>
       </div>
@@ -241,8 +262,18 @@ export default function CostSheet() {
             {draft && blockers.length === 0 && (
               <span className="text-emerald-700">
                 พร้อมส่งถึงวันที่ {fmtDate(cutLimit)} ({readyDays.length} วันที่อนุมัติครบ)
-                {pendingDates.length > 0 && <span className="block text-xs text-amber-700">วันที่ยังรออนุมัติ: {pendingDates.map((d) => fmtDate(d)).join(', ')}</span>}
               </span>
+            )}
+            {/* วันที่ยังอนุมัติไม่ครบ: บอกว่ารอใคร กดเข้าไปดูใบนั้นได้ (Purchase อนุมัติใบรายวันไม่ได้) */}
+            {draft && pendingRows.length > 0 && (
+              <div className="mt-1 space-y-0.5 text-xs text-amber-700">
+                {pendingRows.map((d) => (
+                  <Link key={d.id} to={`/days/${d.id}`} className="block hover:underline">
+                    ยังรออนุมัติ {fmtDate(d.work_date)} · {d.team_name} —{' '}
+                    {d.supervisor_approved_at ? 'รอ Planner อนุมัติ' : `รอหัวหน้างาน ${sups.get(d.supervisor_id ?? '') ?? ''} อนุมัติ`} →
+                  </Link>
+                ))}
+              </div>
             )}
             {cs.status === 'submitted' && <span>ส่งเมื่อ {fmtDateTime(cs.submitted_at)} · ตัวเลขถูกล็อกแล้ว</span>}
             {cs.status === 'approved' && <span className="text-emerald-700">อนุมัติครบเมื่อ {fmtDateTime(cs.approved_at)} · พิมพ์เอกสารแนบใบขอซื้อได้</span>}
@@ -254,11 +285,11 @@ export default function CostSheet() {
                   <Trash2 className="size-4" /> ลบร่าง
                 </Button>
                 <Button loading={busy} disabled={blockers.length > 0} onClick={() => setSendTo(cutLimit)}>
-                  <Send className="size-4" /> ส่งให้หัวหน้างานอนุมัติ
+                  <Send className="size-4" /> ส่งให้ Manager อนุมัติ
                 </Button>
               </>
             )}
-            {cs.status === 'submitted' && isJobSup && !iApproved && (
+            {cs.status === 'submitted' && is('manager') && (
               <>
                 <Button variant="secondary" onClick={() => setReason({ kind: 'reject', text: '' })}>
                   <X className="size-4" /> ตีกลับ
@@ -405,7 +436,7 @@ export default function CostSheet() {
       <Modal
         open={Boolean(sendTo)}
         onClose={() => setSendTo(null)}
-        title="ส่งให้หัวหน้างานอนุมัติ"
+        title="ส่งให้ Manager อนุมัติ"
         footer={
           <>
             <Button variant="secondary" onClick={() => setSendTo(null)}>
@@ -415,7 +446,7 @@ export default function CostSheet() {
               loading={busy}
               disabled={!sendTo || sendTo < cs.period_from || sendTo > cutLimit}
               onClick={async () => {
-                await call('submit_cost_sheet', { p_id: id, p_cut_to: sendTo === cs.period_to ? null : sendTo }, 'ส่งให้หัวหน้างานอนุมัติแล้ว')
+                await call('submit_cost_sheet', { p_id: id, p_cut_to: sendTo === cs.period_to ? null : sendTo }, 'ส่งให้ Manager อนุมัติแล้ว')
                 setSendTo(null)
               }}
             >

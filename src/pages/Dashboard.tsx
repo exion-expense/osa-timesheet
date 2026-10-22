@@ -33,8 +33,10 @@ export default function Dashboard() {
   const totalH = h.normal + h.ot + h.holiday + h.holiday_ot
   const otShare = totalH ? ((h.ot + h.holiday_ot) / totalH) * 100 : 0
   const myPending = is('supervisor')
-    ? d.pending_days_supervisor + d.cost_waiting
-    : is('planner')
+    ? d.pending_days_supervisor
+    : is('manager')
+      ? d.cost_waiting
+      : is('planner')
       ? d.pending_days_planner
       : is('purchase')
         ? d.cost_drafts

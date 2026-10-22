@@ -26,10 +26,13 @@ export default function Inbox() {
     let c = must(costs) as unknown as CostRow[]
     // คัดเฉพาะงานที่ "ถึงตาฉัน"
     if (is('supervisor')) {
-      d = d.filter((x) => x.supervisor_id === profile?.id && !x.supervisor_approved_at && (x.work_date < today || x.open_people === 0))
-      c = c.filter((x) => x.status === 'submitted' && !x.cost_sheet_approvals.some((a) => a.supervisor_id === profile?.id))
+      d = d.filter((x) => x.supervisor_id === profile?.id && !x.supervisor_approved_at && x.people > 0 && (x.work_date < today || x.open_people === 0))
+      c = []
+    } else if (is('manager')) {
+      d = []
+      c = c.filter((x) => x.status === 'submitted')
     } else if (is('planner')) {
-      d = d.filter((x) => x.supervisor_approved_at && !x.planner_approved_at)
+      d = d.filter((x) => x.supervisor_approved_at && !x.planner_approved_at && x.people > 0)
       c = []
     } else if (is('purchase')) {
       d = []
@@ -43,7 +46,9 @@ export default function Inbox() {
   const { days, costs } = data
 
   const hint = is('supervisor')
-    ? 'ใบลงเวลาที่รอคุณตรวจ และใบคิดราคาที่รอคุณอนุมัติ'
+    ? 'ใบลงเวลาที่รอคุณตรวจ'
+    : is('manager')
+      ? 'ใบคิดราคาที่ Purchase ส่งมา รอคุณอนุมัติ'
     : is('planner')
       ? 'ใบลงเวลาที่หัวหน้างานอนุมัติแล้ว รอคุณตรวจและใส่ Allowance'
       : is('purchase')
@@ -54,7 +59,7 @@ export default function Inbox() {
     <>
       <PageHeader title="งานรออนุมัติ" sub={hint} />
       <div className="grid gap-6 xl:grid-cols-2">
-        {!is('purchase') && (
+        {!is('purchase', 'manager') && (
           <Card>
             <CardHeader title={`ใบลงเวลารายวัน (${days.length})`} />
             {days.length === 0 ? (

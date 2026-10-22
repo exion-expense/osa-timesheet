@@ -54,12 +54,14 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000002', 'sup2@test.local'),
   ('00000000-0000-0000-0000-0000000000b1', 'planner@test.local'),
   ('00000000-0000-0000-0000-0000000000c1', 'purchase@test.local'),
+  ('00000000-0000-0000-0000-0000000000d1', 'manager@test.local'),
   ('00000000-0000-0000-0000-0000000000ff', 'nobody@test.local');
 update public.profiles set role = 'admin', full_name = 'แอดมิน' where email = 'admin@test.local';
 update public.profiles set role = 'supervisor', full_name = 'หัวหน้า 1' where email = 'sup1@test.local';
 update public.profiles set role = 'supervisor', full_name = 'หัวหน้า 2' where email = 'sup2@test.local';
 update public.profiles set role = 'planner', full_name = 'แพลนเนอร์' where email = 'planner@test.local';
 update public.profiles set role = 'purchase', full_name = 'จัดซื้อ' where email = 'purchase@test.local';
+update public.profiles set role = 'manager', full_name = 'ผู้จัดการ' where email = 'manager@test.local';
 
 -- ---------- 3. แอดมินสร้างจ็อบ ----------
 set role authenticated;
@@ -206,10 +208,22 @@ select pg_temp.ok((select status = 'submitted' and period_to = :'sun'::date from
 select pg_temp.ok((select count(*) = 1 from public.cost_sheets where status = 'draft' and period_from = :'sun'::date + 1 and period_to = :'sun'::date + 2), 'วันที่เหลือย้ายไปใบร่างใหม่');
 select pg_temp.ok(pg_temp.raises($q$update public.cost_sheets set net_total = 1$q$), 'แก้ยอดเงินหลังส่งไม่ได้');
 
-reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-000000000002');
-select pg_temp.ok(pg_temp.raises($q$select public.approve_cost_sheet('40000000-0000-0000-0000-000000000001')$q$), 'หัวหน้าจ็อบอื่นอนุมัติไม่ได้');
+reset role; set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
+select pg_temp.ok(pg_temp.raises($q$select public.approve_cost_sheet('40000000-0000-0000-0000-000000000001')$q$), 'หัวหน้างานอนุมัติราคาไม่ได้ (ต้องเป็น Manager)');
+select pg_temp.ok(pg_temp.raises($q$select public.reject_cost_sheet('40000000-0000-0000-0000-000000000001', 'ทดสอบตีกลับ')$q$), 'หัวหน้างานตีกลับใบคิดราคาไม่ได้');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
+select pg_temp.ok(pg_temp.raises($q$select public.approve_cost_sheet('40000000-0000-0000-0000-000000000001')$q$), 'Purchase อนุมัติราคาตัวเองไม่ได้');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000d1');
+select pg_temp.ok((select count(*) from public.jobs) >= 1 and (select count(*) from public.attendance) > 0, 'Manager เห็นทุกจ็อบ');
+select pg_temp.ok(pg_temp.raises($q$insert into public.worker_rates values ('30000000-0000-0000-0000-000000000002', 5000)$q$)
+                  or (select day_rate from public.worker_rates where worker_id = '30000000-0000-0000-0000-000000000002') = 800, 'Manager แก้ค่าแรงไม่ได้');
+select pg_temp.ok(pg_temp.raises($q$update public.attendance set note = 'แก้' where true$q$)
+                  or not exists (select 1 from public.attendance where note = 'แก้'), 'Manager แก้เวลาไม่ได้');
+select pg_temp.ok(pg_temp.raises(format('select public.approve_day(%L)', :'sheet_sat')), 'Manager อนุมัติใบรายวันไม่ได้');
+select pg_temp.ok(public.approve_cost_sheet('40000000-0000-0000-0000-000000000001') = 'approved', 'Manager คนเดียวอนุมัติราคาได้');
+select pg_temp.ok((select approver_name = 'ผู้จัดการ' from public.cost_sheet_approvals where cost_sheet_id = '40000000-0000-0000-0000-000000000001'), 'บันทึกชื่อ Manager ติดเอกสาร');
+select pg_temp.ok((select count(*) from public.audit_log) > 0, 'Manager อ่านประวัติการแก้ไขได้');
 select pg_temp.as_user('00000000-0000-0000-0000-000000000001');
-select pg_temp.ok(public.approve_cost_sheet('40000000-0000-0000-0000-000000000001') = 'approved', 'หัวหน้าอนุมัติราคา');
 select pg_temp.ok(pg_temp.raises(format('select public.unapprove_day(%L)', :'sheet_sat')), 'ยกเลิกอนุมัติวันที่ถูกคิดราคาแล้วไม่ได้');
 
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
@@ -353,6 +367,18 @@ select pg_temp.ok((select count(*) from public.signatures where id = :'sig1') = 
 select pg_temp.ok((select count(*) from public.signatures where id = :'sig2') = 0, 'Planner ไม่เห็นลายเซ็นปัจจุบันที่ยังไม่ได้ใช้ในเอกสาร');
 select public.approve_day(:'sigsheet');
 select pg_temp.ok((select planner_name = 'แพลนเนอร์' and planner_sig_id is null from public.day_sheets where id = :'sigsheet'), 'Planner ที่ไม่มีลายเซ็น บันทึกแค่ชื่อ');
+
+-- วันที่เปิดลงเวลาแต่ไม่มีใครมา (ใบว่าง) ไม่ขวางการส่งใบคิดราคา
+reset role;
+insert into public.day_sheets (job_id, team_id, work_date, opened_at)
+select :'sigjob', t.id, public.bkk_today() - 1, now() - interval '1 day' from public.teams t where t.job_id = :'sigjob';
+set role authenticated; select pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
+insert into public.worker_rates (worker_id, day_rate) select w.id, 900 from public.workers w where w.job_id = :'sigjob';
+update public.jobs set terms_confirmed_at = now() where id = :'sigjob';
+select pg_temp.ok((public.cost_preview(:'sigjob', public.bkk_today() - 3, public.bkk_today() - 1) ->> 'pending_days')::int = 0, 'ใบว่างไม่นับเป็นวันรออนุมัติ');
+select id as sigcost from public.cost_sheets where job_id = :'sigjob' and status = 'draft' \gset
+select public.submit_cost_sheet(:'sigcost');
+select pg_temp.ok((select status = 'submitted' and period_to = public.bkk_today() - 1 from public.cost_sheets where id = :'sigcost'), 'ส่งใบคิดราคาได้แม้มีวันว่าง (ตัดถึงเมื่อวานอัตโนมัติ)');
 
 -- สิทธิ์ระดับทีม: หัวหน้าทีม B ในจ็อบเดียวกัน ยุ่งกับทีม A ไม่ได้
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');

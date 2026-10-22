@@ -16,7 +16,7 @@ export function DayBadge({ d }: { d: Parameters<typeof dayStatus>[0] }) {
 
 export function costStatus(c: Pick<CostSheet, 'status' | 'reject_reason'>) {
   if (c.status === 'approved') return { tone: 'green' as const, label: 'อนุมัติแล้ว' }
-  if (c.status === 'submitted') return { tone: 'amber' as const, label: 'รอหัวหน้างานอนุมัติ' }
+  if (c.status === 'submitted') return { tone: 'amber' as const, label: 'รอ Manager อนุมัติ' }
   if (c.reject_reason) return { tone: 'red' as const, label: 'ถูกตีกลับ' }
   return { tone: 'gray' as const, label: 'ร่าง' }
 }
