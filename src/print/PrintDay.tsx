@@ -80,13 +80,13 @@ export function DayDoc({ data }: { data: Awaited<ReturnType<typeof loadDay>> }) 
               <tr key={r.id} className="h-7">
                 <td className="text-center">{i + 1}</td>
                 <td>{nm(r.worker_id)}</td>
-                <td className={`text-center ${r.edit_count > 0 ? 'font-semibold text-rose-600' : ''}`}>{fmtTime(r.check_in)}</td>
-                <td className={`text-center ${r.edit_count > 0 ? 'font-semibold text-rose-600' : ''}`}>{fmtOut(r.check_in, r.check_out)}</td>
+                <td className="text-center">{fmtTime(r.check_in)}</td>
+                <td className="text-center">{fmtOut(r.check_in, r.check_out)}</td>
                 <td className="text-center">{holiday ? '' : fmtHours(r.normal_h)}</td>
                 <td className="text-center">{holiday ? '' : fmtHours(r.ot_h)}</td>
                 <td className="text-center">{holiday ? fmtHours(r.normal_h) : ''}</td>
                 <td className="text-center">{holiday ? fmtHours(r.ot_h) : ''}</td>
-                <td className="text-[9px] text-rose-600">{r.edit_count > 0 ? `แก้ไขครั้งที่ ${r.edit_count}${r.note ? `: ${r.note}` : ''}` : ''}</td>
+                <td className="text-[9px]">{r.edit_count > 0 ? `แก้ไขครั้งที่ ${r.edit_count}${r.note ? `: ${r.note}` : ''}` : ''}</td>
               </tr>
             ))}
             {Array.from({ length: blank }).map((_, i) => (
@@ -100,7 +100,7 @@ export function DayDoc({ data }: { data: Awaited<ReturnType<typeof loadDay>> }) 
           </tbody>
         </table>
         <p className="mt-2 text-[9px] text-slate-600">
-          เวลาบันทึกจากระบบ (เวลาเซิร์ฟเวอร์) · ชั่วโมงปกติไม่เกิน 8 ชม./วัน ส่วนเกินเป็น OT · <span className="text-rose-600">สีแดง = เวลาที่ถูกแก้ไข</span>
+          เวลาบันทึกจากระบบ (เวลาเซิร์ฟเวอร์) · ชั่วโมงปกติไม่เกิน 8 ชม./วัน ส่วนเกินเป็น OT
         </p>
         <div className="mt-8 flex gap-4">
           <SignBox

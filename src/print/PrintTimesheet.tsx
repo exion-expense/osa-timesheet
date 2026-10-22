@@ -47,14 +47,6 @@ export function TimesheetDoc({ data }: { data: CostDocData }) {
   const cell = (w: CostWorker, d: string, field: 'normal' | 'ot', holiday: boolean) => {
     const x = w.days.find((y) => y.date === d)
     if (!x || x.holiday !== holiday) return ''
-    // เวลาที่ถูกแก้ไข: ตัวเลขสีแดง (แก้มากกว่า 1 ครั้งมีเลขครั้งกำกับ)
-    if (x.edits)
-      return (
-        <span className="font-semibold text-rose-600">
-          {fmtHours(x[field])}
-          {x.edits > 1 && <sup>{x.edits}</sup>}
-        </span>
-      )
     return fmtHours(x[field])
   }
   const allowCell = (w: CostWorker, d: string, kind: string) => {
@@ -219,7 +211,7 @@ export function TimesheetDoc({ data }: { data: CostDocData }) {
                   <p>
                     วันทำงาน {snap.job.workweek} วัน/สัปดาห์ · {snap.job.evening_break ? `พักเย็น ${snap.settings.break_minutes} นาทีก่อน OT` : 'ไม่พักก่อน OT'} · เรท/ชม. = ค่าแรงต่อวัน ÷ {snap.settings.normal_hours}
                   </p>
-                  <p>ช่องสีเทา = วันหยุด (×2, OT ×3) · <span className="text-rose-600">ตัวเลขสีแดง = เวลาที่ถูกแก้ไข (เลขยก = แก้ครั้งที่)</span></p>
+                  <p>ช่องสีเทา = วันหยุด (×2, OT ×3)</p>
                 </div>
               </div>
             )}
